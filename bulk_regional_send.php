@@ -24,6 +24,129 @@ if (!$account) {
 
 $aws_key    = htmlspecialchars($account['aws_key']);
 $aws_secret = htmlspecialchars($account['aws_secret']);
+
+// If this request is for SSE streaming, process the OTP tasks server-side and stream updates.
+if (isset($_GET['stream'])) {
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    while (ob_get_level()) { ob_end_flush(); }
+    set_time_limit(0);
+    ignore_user_abort(true);
+
+    // Helper function to send an SSE event.
+    function sendSSE($type, $message) {
+        // Replace newlines with \n for proper SSE formatting.
+        echo "data:" . $type . "|" . str_replace("\n", "\\n", $message) . "\n\n";
+        flush();
+    }
+
+    sendSSE("STATUS", "Starting Bulk Regional OTP Process");
+
+    // List of regions to process.
+    $regions = array(
+        "us-east-1", "us-east-2", "us-west-1", "us-west-2", "ap-south-1",
+        "ap-northeast-3", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1",
+        "ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3",
+        "eu-north-1", "me-central-1", "sa-east-1", "af-south-1", "ap-southeast-3",
+        "ap-southeast-4", "ca-west-1", "eu-south-1", "eu-south-2", "eu-central-2",
+        "me-south-1", "il-central-1", "ap-south-2"
+    );
+    $totalRegions = count($regions);
+    $totalSuccess = 0;
+    $usedRegions = 0; // Regions that have been processed
+
+    // Include the AJAX handler file in "internal" mode so its functions are available.
+    $internal_call = true;
+    require_once('region_ajax_handler.php');
+
+    // Process each region in turn.
+    foreach ($regions as $region) {
+        $usedRegions++;  // Mark this region as processed
+        sendSSE("STATUS", "Moving to region: " . $region);
+        sendSSE("COUNTERS", "Total OTP sended: $totalSuccess; Currently sending in region: $region; Total regions used: $usedRegions; Remaining regions: " . ($totalRegions - $usedRegions));
+
+        // Fetch allowed numbers for the region.
+        $numbersResult = fetch_numbers($region, $user_id, $pdo);
+        if (isset($numbersResult['error'])) {
+            sendSSE("STATUS", "Error fetching numbers for region " . $region . ": " . $numbersResult['error']);
+            sleep(5);
+            continue;
+        }
+        $allowedNumbers = $numbersResult['data'];
+        if (empty($allowedNumbers)) {
+            sendSSE("STATUS", "No allowed numbers found in region: " . $region);
+            sleep(5);
+            continue;
+        }
+
+        // Build OTP tasks:
+        // • First allowed number gets 4 OTPs.
+        // • Next up to 9 allowed numbers (if available) get 1 OTP each.
+        $otpTasks = array();
+        $first = $allowedNumbers[0];
+        for ($i = 0; $i < 4; $i++) {
+            $otpTasks[] = array('id' => $first['id'], 'phone' => $first['phone_number']);
+        }
+        for ($i = 1; $i < min(count($allowedNumbers), 10); $i++){
+            $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
+        }
+
+        // Initialize flags for this region.
+        $otpSentInThisRegion = false;
+        $verifDestError = false;
+
+        // Process each OTP task for this region.
+        foreach ($otpTasks as $task) {
+            sendSSE("STATUS", "[$region] Sending OTP...");
+            // Initialize SNS client for this region.
+            $sns = initSNS($aws_key, $aws_secret, $region);
+            if (is_array($sns) && isset($sns['error'])) {
+                sendSSE("ROW", "$region|OTP Failed: " . $sns['error']);
+                continue;
+            }
+            $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns);
+            if ($result['status'] === 'success') {
+                sendSSE("ROW", "$region|OTP Sent");
+                $totalSuccess++;
+                $otpSentInThisRegion = true;
+                sendSSE("COUNTERS", "Total OTP sended: $totalSuccess; Currently sending in region: $region; Total regions used: $usedRegions; Remaining regions: " . ($totalRegions - $usedRegions));
+                sleep(3);
+            } else if ($result['status'] === 'skip') {
+                sendSSE("ROW", "$region|OTP Skipped: " . $result['message']);
+            } else if ($result['status'] === 'error') {
+                sendSSE("ROW", "$region|OTP Failed: " . $result['message']);
+                if (strpos($result['message'], "VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT") !== false) {
+                    $verifDestError = true;
+                    sendSSE("STATUS", "[$region] VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT error encountered. Skipping region.");
+                    break;
+                } else if (strpos($result['message'], "Access Denied") !== false ||
+                           strpos($result['message'], "Region Restricted") !== false) {
+                    sendSSE("STATUS", "[$region] Critical error encountered (" . $result['message'] . "). Skipping region.");
+                    break;
+                } else {
+                    sleep(5);
+                }
+            }
+        }
+        // Determine wait time for next region.
+        if ($verifDestError) {
+            sendSSE("STATUS", "Region $region encountered VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT error. Waiting 5 seconds before next region...");
+            sleep(5);
+        } else if ($otpSentInThisRegion) {
+            sendSSE("STATUS", "Completed OTP sending for region $region. Waiting 60 seconds before next region...");
+            sleep(60);
+        } else {
+            sendSSE("STATUS", "Completed OTP sending for region $region. Waiting 5 seconds before next region...");
+            sleep(5);
+        }
+    }
+
+    // Build and send the final summary.
+    $summary = "Final Summary:<br>Total OTP sended: $totalSuccess<br>Total regions used: $usedRegions<br>Remaining regions: " . ($totalRegions - $usedRegions);
+    sendSSE("SUMMARY", $summary);
+    sendSSE("STATUS", "Process Completed.");
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -88,10 +211,6 @@ $aws_secret = htmlspecialchars($account['aws_secret']);
       background: #f8d7da;
       color: #721c24;
     }
-    .timer {
-      font-weight: bold;
-      margin-top: 10px;
-    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -106,6 +225,29 @@ $aws_secret = htmlspecialchars($account['aws_secret']);
     }
     th {
       background: #f4f4f4;
+    }
+    #log {
+      background: #000;
+      color: #0f0;
+      padding: 10px;
+      height: 200px;
+      overflow-y: scroll;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    /* Minimal live counters styling */
+    #counters {
+      background: #eee;
+      color: #333;
+      padding: 5px 10px;
+      margin: 10px 0;
+      font-weight: bold;
+      text-align: center;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      display: inline-block;
+      width: auto;
     }
   </style>
 </head>
@@ -128,19 +270,20 @@ $aws_secret = htmlspecialchars($account['aws_secret']);
     <label for="numbers">Allowed Phone Numbers (from database):</label>
     <textarea id="numbers" name="numbers" rows="10" readonly></textarea>
     
-    <!-- Status / countdown messages -->
+    <!-- Status messages -->
     <div id="process-status" class="message"></div>
-    <div id="countdown" class="timer"></div>
     
-    <!-- Table of numbers with OTP sent -->
-    <h2>Numbers with OTP Sent</h2>
+    <!-- Live Counters -->
+    <h2>Live Counters</h2>
+    <div id="counters"></div>
+    
+    <!-- Table of OTP events -->
+    <h2>OTP Events</h2>
     <table id="sent-numbers-table">
       <thead>
         <tr>
           <th>Region</th>
-          <th>ID</th>
-          <th>Phone Number</th>
-          <th>Status</th>
+          <th>Event</th>
         </tr>
       </thead>
       <tbody>
@@ -151,234 +294,58 @@ $aws_secret = htmlspecialchars($account['aws_secret']);
     <!-- Final Summary -->
     <h2>Final Summary</h2>
     <div id="summary"></div>
+    
+    <!-- Live Log -->
+    <h2>Live Log</h2>
+    <div id="log"></div>
   </div>
   
   <script>
     $(document).ready(function(){
-      var awsKey = $('#awsKey').val();
-      var awsSecret = $('#awsSecret').val();
-      // Pass the user_id from PHP to JavaScript
       var userId = <?php echo $user_id; ?>;
-      
-      // List of regions to iterate automatically
-      var regions = [
-        "us-east-1", "us-east-2", "us-west-1", "us-west-2", "ap-south-1",
-        "ap-northeast-3", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1",
-        "ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3",
-        "eu-north-1", "me-central-1", "sa-east-1", "af-south-1", "ap-southeast-3",
-        "ap-southeast-4", "ca-west-1", "eu-south-1", "eu-south-2", "eu-central-2",
-        "me-south-1", "il-central-1", "ap-south-2"
-      ];
-      var currentRegionIndex = 0;
-      var regionSummary = {}; // Records OTP count for each region (successful sends)
-      var regionErrors = {};  // Records error messages per region
-      var totalSuccess = 0;
-      
-      // Reusable countdown function for delays.
-      function startDelayTimer(delaySeconds, callback, region, prefixMessage) {
-        var remaining = delaySeconds;
-        $('#countdown').fadeIn().text(prefixMessage + " " + remaining + " seconds remaining... (" + region + ")");
-        var interval = setInterval(function(){
-          remaining--;
-          if(remaining > 0){
-            $('#countdown').text(prefixMessage + " " + remaining + " seconds remaining... (" + region + ")");
-          } else {
-            clearInterval(interval);
-            $('#countdown').fadeOut();
-            callback();
-          }
-        }, 1000);
-      }
+      var acId = <?php echo $id; ?>;
       
       $('#start-bulk-regional-otp').click(function(){
          $(this).prop('disabled', true);
-         currentRegionIndex = 0;
-         regionSummary = {};
-         regionErrors = {};
-         totalSuccess = 0;
-         // Clear previous table rows, summary, and numbers text area
+         $('#process-status').removeClass('error').removeClass('success').text('');
+         $('#numbers').val('');
          $('#sent-numbers-table tbody').html('');
          $('#summary').html('');
-         $('#numbers').val('');
-         processNextRegion();
+         $('#log').html('');
+         $('#counters').html('');
+         
+         // Start SSE connection.
+         var evtSource = new EventSource("bulk_regional_send.php?ac_id=" + acId + "&user_id=" + userId + "&stream=1");
+         evtSource.onmessage = function(e) {
+             // Our messages use the format: TYPE|content
+             var data = e.data;
+             var parts = data.split("|");
+             var type = parts[0];
+             var content = parts.slice(1).join("|").replace(/\\n/g, "<br>");
+             
+             if (type === "STATUS") {
+                 $('#process-status').text(content).show();
+                 $('#log').append("STATUS: " + content + "<br>");
+             } else if (type === "COUNTERS") {
+                 $('#counters').html(content);
+                 $('#log').append("COUNTERS: " + content + "<br>");
+             } else if (type === "ROW") {
+                 // Format: "ROW|region|message"
+                 var region = parts[1];
+                 var message = parts.slice(2).join("|");
+                 var row = '<tr><td>' + region + '</td><td>' + message + '</td></tr>';
+                 $('#sent-numbers-table tbody').append(row);
+                 $('#log').append("[" + region + "] " + message + "<br>");
+             } else if (type === "SUMMARY") {
+                 $('#summary').html(content);
+                 $('#log').append("SUMMARY: " + content + "<br>");
+             }
+         };
+         evtSource.onerror = function() {
+             $('#process-status').text("An error occurred with the SSE connection.").addClass('error').show();
+             evtSource.close();
+         };
       });
-      
-      // Process each region one by one.
-      function processNextRegion(){
-         if(currentRegionIndex >= regions.length){
-            displayFinalSummary();
-            $('#process-status').removeClass('error').addClass('success')
-              .text("All regions processed.").fadeIn();
-            $('#start-bulk-regional-otp').prop('disabled', false);
-            return;
-         }
-         
-         var region = regions[currentRegionIndex];
-         $('#process-status').removeClass('error').addClass('success')
-            .text("Processing region: " + region).fadeIn();
-         
-         // Fetch allowed numbers for the current region.
-         $.ajax({
-            url: 'region_ajax_handler.php',
-            type: 'POST',
-            dataType: 'json',
-            data: { 
-              action: 'fetch_numbers', 
-              region: region,
-              user_id: userId  // Pass user_id here
-            },
-            success: function(response){
-               if(response.status === 'success'){
-                  var allowedNumbers = response.data;
-                  var numbersDisplay = "Region: " + region + "\n";
-                  if(allowedNumbers.length === 0){
-                     numbersDisplay += "No allowed numbers found.\n";
-                  } else {
-                     allowedNumbers.forEach(function(item){
-                        numbersDisplay += "ID: " + item.id + " | Phone: " + item.phone_number + " | ATM Left: " + item.atm_left + " | Created At: " + item.created_at + "\n";
-                     });
-                  }
-                  // Append the numbers to the textarea.
-                  $('#numbers').val($('#numbers').val() + "\n" + numbersDisplay);
-                  
-                  if(allowedNumbers.length === 0){
-                     regionSummary[region] = 0;
-                     currentRegionIndex++;
-                     $('#process-status').text("No allowed numbers for region " + region + ". Moving to next region in 5 seconds...");
-                     startDelayTimer(5, processNextRegion, region, "Delay:");
-                  } else {
-                     // Build OTP tasks:
-                     // • First allowed number gets 4 OTPs.
-                     // • Next up to 9 allowed numbers (if available) get 1 OTP each.
-                     var otpTasks = [];
-                     otpTasks.push({ id: allowedNumbers[0].id, phone: allowedNumbers[0].phone_number });
-                     otpTasks.push({ id: allowedNumbers[0].id, phone: allowedNumbers[0].phone_number });
-                     otpTasks.push({ id: allowedNumbers[0].id, phone: allowedNumbers[0].phone_number });
-                     otpTasks.push({ id: allowedNumbers[0].id, phone: allowedNumbers[0].phone_number });
-                     for(var i = 1; i < Math.min(allowedNumbers.length, 10); i++){
-                        otpTasks.push({ id: allowedNumbers[i].id, phone: allowedNumbers[i].phone_number });
-                     }
-                     regionSummary[region] = 0;
-                     processOTPTasksForRegion(otpTasks, 0, region);
-                  }
-               } else {
-                  regionErrors[region] = "Error fetching numbers: " + response.message;
-                  $('#numbers').val($('#numbers').val() + "\nRegion: " + region + " - " + regionErrors[region] + "\n");
-                  currentRegionIndex++;
-                  startDelayTimer(5, processNextRegion, region, "Error delay:");
-               }
-            },
-            error: function(xhr, status, error){
-               regionErrors[region] = "AJAX error fetching numbers: " + error;
-               $('#numbers').val($('#numbers').val() + "\nRegion: " + region + " - " + regionErrors[region] + "\n");
-               currentRegionIndex++;
-               startDelayTimer(3, processNextRegion, region, "Error delay:");
-            }
-         });
-      }
-      
-      // Process OTP tasks for a given region.
-      // If an error like "Access Denied" occurs, skip all remaining OTP tasks for that region.
-      function processOTPTasksForRegion(tasks, index, region){
-         if(index >= tasks.length){
-            $('#process-status').removeClass('error').addClass('success')
-              .text("Completed OTP sending for region " + region + ". Waiting 5 minutes before next region...").fadeIn();
-            currentRegionIndex++;
-            startDelayTimer(70, processNextRegion, region, "Waiting:");
-            return;
-         }
-         
-         var task = tasks[index];
-         $('#process-status').removeClass('error').addClass('success')
-            .text("[" + region + "] Sending OTP to: " + task.phone).fadeIn();
-         
-         $.ajax({
-            url: 'region_ajax_handler.php',
-            type: 'POST',
-            dataType: 'json',
-            data: {
-               action: 'send_otp_single',
-               id: task.id,
-               phone: task.phone,
-               region: region,
-               awsKey: awsKey,
-               awsSecret: awsSecret,
-               user_id: userId  // Pass user_id here as well
-            },
-            success: function(response){
-               if(response.status === 'success'){
-                  addSentNumberRow(region, task.id, task.phone, 'OTP Sent');
-                  totalSuccess++;
-                  regionSummary[region]++;
-                  startDelayTimer(3, function(){ processOTPTasksForRegion(tasks, index + 1, region); }, region, "Waiting:");
-               }
-               else if(response.status === 'skip'){
-                  // For errors like monthly spend limit reached, skip remaining tasks for this number.
-                  addSentNumberRow(region, task.id, task.phone, 'Skipped: ' + response.message);
-                  var currentId = task.id;
-                  var newIndex = index + 1;
-                  while(newIndex < tasks.length && tasks[newIndex].id === currentId){
-                      newIndex++;
-                  }
-                  processOTPTasksForRegion(tasks, newIndex, region);
-               }
-               else if(response.status === 'error'){
-                  // Check if error contains messages indicating we should skip the entire region.
-                  if(response.message.indexOf("VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT") !== -1 ||
-                     response.message.indexOf("Access Denied") !== -1 ||
-                     response.message.indexOf("Region Restricted") !== -1){
-                     addSentNumberRow(region, task.id, task.phone, 'Failed: ' + response.message);
-                     regionErrors[region] = "Error encountered (" + response.message + "). Skipping entire region.";
-                     $('#process-status').removeClass('success').addClass('error')
-                       .text("Region " + region + " encountered error (" + response.message + "). Moving to next region in 5 seconds...").fadeIn();
-                     currentRegionIndex++;
-                     startDelayTimer(3, processNextRegion, region, "Error delay:");
-                     return;
-                  } else {
-                     // For other errors, log the failure and try the next OTP after a delay.
-                     addSentNumberRow(region, task.id, task.phone, 'Failed: ' + response.message);
-                     startDelayTimer(5, function(){ processOTPTasksForRegion(tasks, index + 1, region); }, region, "Waiting:");
-                  }
-               }
-            },
-            error: function(xhr, status, error){
-               addSentNumberRow(region, task.id, task.phone, 'AJAX error: ' + error);
-               startDelayTimer(5, function(){ processOTPTasksForRegion(tasks, index + 1, region); }, region, "Waiting:");
-            }
-         });
-      }
-      
-      // Function to add a row to the "Numbers with OTP Sent" table.
-      function addSentNumberRow(region, id, phone, status){
-         var row = '<tr>' +
-                   '<td>' + region + '</td>' +
-                   '<td>' + id + '</td>' +
-                   '<td>' + phone + '</td>' +
-                   '<td>' + status + '</td>' +
-                   '</tr>';
-         $('#sent-numbers-table tbody').append(row);
-      }
-      
-      // Function to display the final summary.
-      function displayFinalSummary(){
-         var summaryHtml = "<h3>Final Summary</h3>";
-         summaryHtml += "<h4>Successful Regions:</h4><ul>";
-         for(var r in regionSummary){
-            if(!regionErrors[r]){
-               summaryHtml += "<li>" + r + ": " + regionSummary[r] + " OTPs sent</li>";
-            }
-         }
-         summaryHtml += "</ul>";
-         
-         summaryHtml += "<h4>Regions with Errors:</h4><ul>";
-         for(var r in regionErrors){
-             summaryHtml += "<li>" + r + ": " + regionErrors[r] + "</li>";
-         }
-         summaryHtml += "</ul>";
-         
-         summaryHtml += "<h4>Total OTPs sent: " + totalSuccess + "</h4>";
-         $('#summary').html(summaryHtml);
-      }
     });
   </script>
 </body>
