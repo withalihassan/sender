@@ -1,6 +1,6 @@
 <?php
 // db.php
-$host     = 'localhost';
+$host     = '47.89.232.110';
 $dbname   = 'sender';
 $username = 'sender';
 $password = 'Tech@#009';
