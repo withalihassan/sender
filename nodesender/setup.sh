@@ -4,8 +4,8 @@
 # Update and upgrade system packages
 sudo apt update && sudo apt upgrade -y
 
-# Install Apache, PHP, and required PHP modules along with wget and unzip
-sudo apt install -y apache2 php libapache2-mod-php php-mysql php-mbstring php-xml wget unzip
+# Install Apache, PHP, required PHP modules, Git, wget, and unzip
+sudo apt install -y apache2 php libapache2-mod-php php-mysql php-mbstring php-xml git wget unzip
 
 # Enable Apache to start on boot and restart Apache
 sudo systemctl enable apache2
@@ -17,18 +17,17 @@ cd /var/www/html
 # Remove the default index file if it exists
 sudo rm -f index.html
 
-# Download the website zip file from S3
-wget https://s3.eu-north-1.amazonaws.com/insoftstudio.com/smsdo.zip -O /tmp/smsdo.zip
+# Clone the repository from GitHub into the Apache web root
+sudo git clone https://github.com/withalihassan/sender.git
 
-# Unzip the downloaded file into the /tmp directory
-sudo unzip /tmp/smsdo.zip -d /tmp/
+# Change into the cloned repository directory
+cd sender
 
-# Copy all website files from the smsdo folder to the Apache web root
-sudo cp -r /tmp/smsdo/* .
+# Checkout the "remote" branch
+sudo git checkout remote
 
-# Clean up temporary files
-sudo rm -rf /tmp/smsdo
-sudo rm /tmp/smsdo.zip
+# Copy all files from the repository to the Apache web root
+sudo cp -r ./* /var/www/html/
 
-# Restart Apache to ensure all changes take effect
+# Restart Apache to apply all changes
 sudo systemctl restart apache2

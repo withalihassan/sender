@@ -82,17 +82,14 @@ try {
             ],
         ]);
     }
-    $userData = "#!/bin/bash
-    sudo apt-get update
-    sudo apt install -y apache2 php libapache2-mod-php php-mysql php-mbstring php-xml wget unzip
-    cd /var/www/html
-    sudo rm -f index.html
-    sudo wget https://s3.eu-north-1.amazonaws.com/insoftstudio.com/smsdo.zip ./
-    sudo unzip smsdo.zip
-    sudo cp -r ./smsdo/* ./
-    sudo systemctl enable apache2
-    sudo systemctl restart apache2
-    ";
+    $userData = file_get_contents('setup.sh');
+
+    if ($userData === false) {
+        // Handle the error appropriately if the file cannot be read
+        die('Error: Could not read setup.sh file');
+    }
+
+    // Encode the contents
     $userDataEncoded = base64_encode($userData);
 
 
