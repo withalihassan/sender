@@ -5,12 +5,12 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// If not an internal call, set the JSON header.
+// If not an internal call, set JSON header.
 if (empty($internal_call)) {
     header('Content-Type: application/json');
 }
 
-// Include the AWS PHP SDK autoloader
+// Include the AWS PHP SDK autoloader.
 require_once __DIR__ . '/aws/aws-autoloader.php';
 
 use Aws\Sns\SnsClient;
@@ -34,12 +34,21 @@ function initSNS($awsKey, $awsSecret, $awsRegion) {
 }
 
 // Function to fetch allowed phone numbers.
-function fetch_numbers($region, $user_id, $pdo) {
+// If $set_id is provided, numbers are filtered by that set.
+function fetch_numbers($region, $user_id, $pdo, $set_id = null) {
     if (empty($region)) {
         return ['error' => 'Region is required.'];
     }
-    $stmt = $pdo->prepare("SELECT id, phone_number, atm_left, created_at FROM allowed_numbers WHERE status = 'fresh' AND atm_left > 0 AND by_user = ? ORDER BY RAND()");
-    $stmt->execute([$user_id]);
+    $query = "SELECT id, phone_number, atm_left, created_at FROM allowed_numbers WHERE status = 'fresh' AND atm_left > 0 AND by_user = ?";
+    $params = [$user_id];
+    if (!empty($set_id)) {
+        $query .= " AND set_id = ?";
+        $params[] = $set_id;
+    }
+    $query .= " ORDER BY RAND() LIMIT 50";
+    
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
     $numbers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     return ['success' => true, 'region' => $region, 'data' => $numbers];
 }
@@ -49,7 +58,6 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $user_id, $p
     if (!$id || empty($phone)) {
         return ['status' => 'error', 'message' => 'Invalid phone number or ID.', 'region' => $region];
     }
-    // Verify that the number exists and has remaining attempts.
     $stmt = $pdo->prepare("SELECT atm_left FROM allowed_numbers WHERE id = ? AND by_user = ?");
     $stmt->execute([$id, $user_id]);
     $numberData = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -60,7 +68,6 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $user_id, $p
     if ($current_atm <= 0) {
         return ['status' => 'error', 'message' => 'No remaining OTP attempts for this number.', 'region' => $region];
     }
-    // Send OTP via AWS SNS.
     try {
         $result = $sns->createSMSSandboxPhoneNumber([
             'PhoneNumber' => $phone,
@@ -78,7 +85,6 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $user_id, $p
         }
         return ['status' => 'error', 'message' => "Error sending OTP: " . $errorMsg, 'region' => $region];
     }
-    // Update the database for the OTP attempt.
     try {
         $new_atm = $current_atm - 1;
         $new_status = ($new_atm == 0) ? 'used' : 'fresh';
@@ -91,26 +97,26 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $user_id, $p
     return ['status' => 'success', 'message' => "OTP sent to $phone successfully.", 'region' => $region];
 }
 
-// If not an internal call, process the AJAX actions.
 if (empty($internal_call)) {
-    $awsKey = isset($_POST['awsKey']) && !empty($_POST['awsKey']) ? $_POST['awsKey'] : 'DEFAULT_AWS_KEY';
+    $awsKey    = isset($_POST['awsKey']) && !empty($_POST['awsKey']) ? $_POST['awsKey'] : 'DEFAULT_AWS_KEY';
     $awsSecret = isset($_POST['awsSecret']) && !empty($_POST['awsSecret']) ? $_POST['awsSecret'] : 'DEFAULT_AWS_SECRET';
     $awsRegion = 'ap-south-1';
     if (!empty($_POST['region'])) {
         $awsRegion = trim($_POST['region']);
     }
-    $action = isset($_POST['action']) ? $_POST['action'] : '';
+    $action  = isset($_POST['action']) ? $_POST['action'] : '';
     $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-
+    
     $sns = initSNS($awsKey, $awsSecret, $awsRegion);
     if (is_array($sns) && isset($sns['error'])) {
         echo json_encode(['status' => 'error', 'message' => $sns['error']]);
         exit;
     }
-
+    
     if ($action === 'fetch_numbers') {
         $region = isset($_POST['region']) ? trim($_POST['region']) : '';
-        $result = fetch_numbers($region, $user_id, $pdo);
+        $set_id = isset($_POST['set_id']) ? trim($_POST['set_id']) : '';
+        $result = fetch_numbers($region, $user_id, $pdo, $set_id);
         if (isset($result['error'])) {
             echo json_encode(['status' => 'error', 'message' => $result['error']]);
         } else {

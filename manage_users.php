@@ -4,22 +4,23 @@ include('db.php');
 $message = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_user'])) {
-    $username = trim($_POST['username']);
-    $password = trim($_POST['password']);
-    $account_status = trim($_POST['account_status']);
+  $username = trim($_POST['username']);
+  $password = trim($_POST['password']);
+  $account_status = trim($_POST['account_status']);
 
-    // Insert the new user (password stored as plain text per requirements)
-    $stmt = $pdo->prepare("INSERT INTO users (username, password, account_status) VALUES (?, ?, ?)");
-    try {
-        $stmt->execute([$username, $password, $account_status]);
-        $message = "User added successfully!";
-    } catch (PDOException $e) {
-        $message = "Error adding user: " . $e->getMessage();
-    }
+  // Insert the new user (password stored as plain text per requirements)
+  $stmt = $pdo->prepare("INSERT INTO users (username, password, account_status) VALUES (?, ?, ?)");
+  try {
+    $stmt->execute([$username, $password, $account_status]);
+    $message = "User added successfully!";
+  } catch (PDOException $e) {
+    $message = "Error adding user: " . $e->getMessage();
+  }
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Manage Users</title>
@@ -28,21 +29,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_user'])) {
   <!-- DataTables CSS -->
   <link rel="stylesheet" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.min.css">
   <style>
-    .container { margin-top: 50px; }
-    .btn-group .status-select { margin-right: 5px; }
+    .container {
+      margin-top: 50px;
+    }
+
+    .btn-group .status-select {
+      margin-right: 5px;
+    }
   </style>
 </head>
+
 <body>
   <nav class="navbar navbar-expand-lg navbar-light bg-light">
     <a class="navbar-brand" href="#">Manage Users</a>
     <div class="collapse navbar-collapse">
       <ul class="navbar-nav ml-auto">
-         <li class="nav-item">
-           <a class="nav-link" href="index.php">Dashboard</a>
-         </li>
-         <li class="nav-item">
-           <a class="nav-link" href="logout.php">Logout</a>
-         </li>
+        <li class="nav-item">
+          <a class="nav-link" href="index.php">Dashboard</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="index.php">Account Providers</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="index.php">Account Consumers</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="index.php">Numbers Directory</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="logout.php">Logout</a>
+        </li>
       </ul>
     </div>
   </nav>
@@ -50,7 +66,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_user'])) {
     <?php if ($message): ?>
       <div class="alert alert-info"><?php echo $message; ?></div>
     <?php endif; ?>
-    
+
     <!-- Add New User Form -->
     <div class="card mb-4">
       <div class="card-header">Add New User</div>
@@ -76,7 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_user'])) {
         </form>
       </div>
     </div>
-    
+
     <!-- Users List Table -->
     <div class="card">
       <div class="card-header">Users List</div>
@@ -96,7 +112,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_user'])) {
             <?php
             $stmt = $pdo->query("SELECT * FROM users ORDER BY id DESC");
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                echo "<tr id='row-{$row['id']}'>
+              echo "<tr id='row-{$row['id']}'>
                         <td>{$row['id']}</td>
                         <td>" . htmlspecialchars($row['username']) . "</td>
                         <td>" . htmlspecialchars($row['password']) . "</td>
@@ -121,55 +137,63 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_user'])) {
       </div>
     </div>
   </div>
-  
+
   <!-- jQuery, Bootstrap JS, and DataTables JS -->
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
   <script>
     $(document).ready(function() {
-        $('#usersTable').DataTable();
+      $('#usersTable').DataTable();
 
-        // Delete user with AJAX
-        $('.delete-user').on('click', function() {
-            if (confirm("Are you sure you want to delete this user?")) {
-                var userId = $(this).data('id');
-                var row = $('#row-' + userId);
-                $.ajax({
-                    url: 'scripts/delete_user.php',
-                    type: 'POST',
-                    data: { id: userId },
-                    success: function(response) {
-                        if (response === 'success') {
-                            row.fadeOut(500, function() { row.remove(); });
-                        } else {
-                            alert('Error deleting user.');
-                        }
-                    }
+      // Delete user with AJAX
+      $('.delete-user').on('click', function() {
+        if (confirm("Are you sure you want to delete this user?")) {
+          var userId = $(this).data('id');
+          var row = $('#row-' + userId);
+          $.ajax({
+            url: 'scripts/delete_user.php',
+            type: 'POST',
+            data: {
+              id: userId
+            },
+            success: function(response) {
+              if (response === 'success') {
+                row.fadeOut(500, function() {
+                  row.remove();
                 });
+              } else {
+                alert('Error deleting user.');
+              }
             }
-        });
+          });
+        }
+      });
 
-        // Update user status with AJAX
-        $('.update-status').on('click', function() {
-            var userId = $(this).data('id');
-            var newStatus = $(this).siblings('.status-select').val();
-            $.ajax({
-                url: 'scripts/update_status.php',
-                type: 'POST',
-                data: { id: userId, status: newStatus },
-                success: function(response) {
-                    if (response === 'success') {
-                        alert('Status updated successfully.');
-                        // Optionally update the "Current Status" cell in the table:
-                        $('#row-' + userId + ' td:nth-child(4)').text(newStatus);
-                    } else {
-                        alert('Error updating status: ' + response);
-                    }
-                }
-            });
+      // Update user status with AJAX
+      $('.update-status').on('click', function() {
+        var userId = $(this).data('id');
+        var newStatus = $(this).siblings('.status-select').val();
+        $.ajax({
+          url: 'scripts/update_status.php',
+          type: 'POST',
+          data: {
+            id: userId,
+            status: newStatus
+          },
+          success: function(response) {
+            if (response === 'success') {
+              alert('Status updated successfully.');
+              // Optionally update the "Current Status" cell in the table:
+              $('#row-' + userId + ' td:nth-child(4)').text(newStatus);
+            } else {
+              alert('Error updating status: ' + response);
+            }
+          }
         });
+      });
     });
   </script>
 </body>
+
 </html>

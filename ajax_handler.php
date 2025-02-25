@@ -1,14 +1,12 @@
 <?php
-// session.php
-// Ensure no whitespace or output is sent before this tag.
-
+// ajax_handler.php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 header('Content-Type: application/json');
 
-// Include the AWS PHP SDK autoloader. Adjust the path if necessary.
+// Include the AWS PHP SDK autoloader
 require_once __DIR__ . '/aws/aws-autoloader.php';
 
 use Aws\Sns\SnsClient;
@@ -47,6 +45,9 @@ try {
 
 $action = isset($_POST['action']) ? $_POST['action'] : '';
 
+// Include database connection
+include('db.php');
+
 if ($action === 'fetch_numbers') {
     // Fetch allowed phone numbers from the database (with status "fresh")
     $region = isset($_POST['region']) ? trim($_POST['region']) : '';
@@ -54,13 +55,19 @@ if ($action === 'fetch_numbers') {
         echo json_encode(['status' => 'error', 'message' => 'Region is required.']);
         exit;
     }
+    // Check for set_id; if provided, filter by it.
+    $set_id = isset($_POST['set_id']) ? trim($_POST['set_id']) : '';
 
-    // Database connection settings
-    include('db.php'); // This file must initialize your $pdo connection
-
-    // Select numbers that are "fresh" (i.e. not used) and return additional fields.
-    $stmt = $pdo->prepare("SELECT id, phone_number, atm_left, last_used, created_at FROM allowed_numbers WHERE status = 'fresh' AND by_user = :session_id ORDER BY RAND() LIMIT 50");
-    $stmt->execute(['session_id' => $session_id]);
+    $query = "SELECT id, phone_number, atm_left, last_used, created_at FROM allowed_numbers WHERE status = 'fresh' AND by_user = :session_id";
+    $params = ['session_id' => $session_id];
+    if (!empty($set_id)) {
+        $query .= " AND set_id = :set_id";
+        $params['set_id'] = $set_id;
+    }
+    $query .= " ORDER BY RAND() LIMIT 50";
+    
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
     $numbers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
@@ -84,9 +91,6 @@ if ($action === 'fetch_numbers') {
         exit;
     }
 
-    // Database connection settings
-    include('db.php'); // This file must initialize your $pdo connection
-
     // Send OTP via AWS SNS Sandbox.
     try {
         // This example uses createSMSSandboxPhoneNumber; adjust as necessary for your OTP sending.
@@ -95,7 +99,6 @@ if ($action === 'fetch_numbers') {
         ]);
     } catch (AwsException $e) {
         $errorMsg = $e->getAwsErrorMessage() ?: $e->getMessage();
-        // If monthly spend limit is reached, return a "skip" status instead of erroring out
         if (strpos($errorMsg, "MONTHLY_SPEND_LIMIT_REACHED_FOR_TEXT") !== false) {
             echo json_encode([
                 'status'  => 'skip',
@@ -114,12 +117,8 @@ if ($action === 'fetch_numbers') {
     }
 
     // Update the allowed_numbers record:
-    // - Decrement atm_left by 1
-    // - Update last_used timestamp
-    // - If atm_left reaches 0, mark status as "used"
     try {
-        // First, fetch the current atm_left value.
-        $stmt = $pdo->prepare("SELECT atm_left FROM allowed_numbers WHERE id = :id AND by_user = :session_id s");
+        $stmt = $pdo->prepare("SELECT atm_left FROM allowed_numbers WHERE id = :id AND by_user = :session_id");
         $stmt->execute(['id' => $id, 'session_id' => $session_id]);
         $numberData = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$numberData) {
@@ -143,7 +142,7 @@ if ($action === 'fetch_numbers') {
         $new_status = ($new_atm == 0) ? 'used' : 'fresh';
         $last_used = date("Y-m-d H:i:s");
 
-        $updateStmt = $pdo->prepare("UPDATE allowed_numbers SET atm_left = :atm_left, last_used = :last_used, status = :status WHERE id = :id AND by_user = :session_id ");
+        $updateStmt = $pdo->prepare("UPDATE allowed_numbers SET atm_left = :atm_left, last_used = :last_used, status = :status WHERE id = :id AND by_user = :session_id");
         $updateStmt->execute([
             'atm_left'    => $new_atm,
             'last_used'   => $last_used,
@@ -175,11 +174,7 @@ if ($action === 'fetch_numbers') {
         exit;
     }
 
-    // Database connection settings (update credentials as needed)
-    include('db.php'); // This file must initialize your $pdo connection
     try {
-        $pdo = new PDO("mysql:host=$db_host;dbname=$db_name;charset=utf8", $db_user, $db_pass);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $stmt = $pdo->prepare("UPDATE allowed_numbers SET status = :new_status WHERE id = :id");
         $stmt->execute(['new_status' => $new_status, 'id' => $id]);
         echo json_encode([
