@@ -1,7 +1,13 @@
 <?php
 session_start();
+
+// If already logged in, redirect based on account type
 if (isset($_SESSION['user_id'])) {
-    header("Location: index.php");
+    if ($_SESSION['type'] === 'provider') {
+        header("Location: provider/index.php");
+    } else {
+        header("Location: index.php");
+    }
     exit;
 }
 
@@ -13,19 +19,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $password = trim($_POST['password']);
     
     // Query the database for matching user credentials
-    $stmt = $pdo->prepare("SELECT id, account_status FROM users WHERE username = ? AND password = ?");
+    $stmt = $pdo->prepare("SELECT id, type FROM users WHERE username = ? AND password = ?");
     $stmt->execute([$username, $password]);
     
     if ($stmt->rowCount() == 1) {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($user['account_status'] !== 'active') {
-            $message = "Your account is <strong>" . htmlspecialchars($user['account_status']) . "</strong>. Please contact support.";
-        } else {
-            // Login success, start session using unique user id.
-            $_SESSION['user_id'] = $user['id'];
+        // Login success: set session variables
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['type'] = $user['type'];
+        
+        // Redirect based on account type
+        if ($user['type'] === 'provider') {
+            header("Location: provider/index.php");
+        } else { // assume consumer
             header("Location: index.php");
-            exit;
         }
+        exit;
     } else {
         $message = "Invalid login credentials.";
     }

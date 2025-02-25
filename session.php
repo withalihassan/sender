@@ -1,8 +1,12 @@
 <?php
 session_start();
+// If user is not logged in, redirect to login page.
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location: ./login.php");
     exit;
+}
+if($_SESSION['type'] !== 'consumer'){
+    header("Location: ./provider/");
 }
 
 include('db.php');
@@ -19,4 +23,3 @@ if (!$user) {
 $session_id = $_SESSION['user_id'];
 $username = $user['username'];
 $account_status = $user['account_status'];
-?>

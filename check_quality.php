@@ -58,7 +58,7 @@ $sets = $stmtSets->fetchAll(PDO::FETCH_ASSOC);
 
 <head>
   <meta charset="UTF-8">
-  <title>Bulk OTP Sending</title>
+  <title>CQ Accounnt ID <?php echo $accountId;?></title>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
     body {
@@ -179,7 +179,7 @@ $sets = $stmtSets->fetchAll(PDO::FETCH_ASSOC);
 
 <body>
   <div class="container">
-    <h1>Bulk OTP Sending</h1>
+    <h1>Check Quality Accounnt ID <?php echo $accountId;?></h1>
     <button id="updateButton">Mark As Completed</button>
     <div id="result"></div>
     <form id="bulk-otp-form">

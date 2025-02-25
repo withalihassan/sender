@@ -12,7 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Bulk Import Numbers - Only Manual Entry is allowed now
     if (isset($_POST['import_numbers'])) {
         $manual = trim($_POST['manual_numbers']);
-        if ($manual != '') {
+        $set_id = trim($_POST['set_id']);  // Get the selected set from the dropdown
+        if ($manual != '' && $set_id != '') {
             $lines = explode("\n", $manual);
             $importedCount = 0;
             $skippedCount = 0;
@@ -30,9 +31,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         continue;  // Skip duplicate
                     }
                     try {
-                        // Insert new number with atm_left = 10
-                        $stmt = $pdo->prepare("INSERT INTO allowed_numbers (phone_number, status, atm_left, by_user) VALUES (?, 'fresh', 10, ?)");
-                        $stmt->execute([$num, $session_id]);
+                        // Insert new number with atm_left = 10 and include set_id
+                        $stmt = $pdo->prepare("INSERT INTO allowed_numbers (phone_number, status, atm_left, by_user, set_id) VALUES (?, 'fresh', 10, ?, ?)");
+                        $stmt->execute([$num, $session_id, $set_id]);
                         $importedCount++;
                     } catch (PDOException $e) {
                         // Optionally log error and count as skipped
@@ -45,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $message .= " Skipped $skippedCount duplicate numbers.";
             }
         } else {
-            $message = "No numbers provided in manual input.";
+            $message = "Please provide numbers and select a set.";
         }
     }
     // Delete a single number
@@ -127,9 +128,17 @@ try {
     $message = "Error fetching stats: " . $e->getMessage();
 }
 
-// Fetch All Numbers for Current User
-$stmt = $pdo->prepare("SELECT * FROM allowed_numbers WHERE by_user = ? ORDER BY id DESC");
-$stmt->execute([$session_id]);
+// Fetch Numbers Globally:
+// - If an id is provided in the URL (e.g. ?id=2), fetch only numbers for that specific set.
+// - If no id is provided, fetch all numbers that belong to any set (i.e. where set_id IS NOT NULL).
+if (isset($_GET['id']) && !empty($_GET['id'])) {
+    $set_id = $_GET['id'];
+    $stmt = $pdo->prepare("SELECT an.*, bs.set_name FROM allowed_numbers an LEFT JOIN bulk_sets bs ON an.set_id = bs.id WHERE an.set_id = ? ORDER BY an.id DESC");
+    $stmt->execute([$set_id]);
+} else {
+    $stmt = $pdo->prepare("SELECT an.*, bs.set_name FROM allowed_numbers an LEFT JOIN bulk_sets bs ON an.set_id = bs.id WHERE an.set_id IS NOT NULL ORDER BY an.id DESC");
+    $stmt->execute();
+}
 $numbers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Current date/time for display
@@ -220,6 +229,20 @@ $currentDateTime = date("l, F j, Y, g:i A");
           <div class="card-header">Bulk Import Numbers (Manual Entry Only)</div>
           <div class="card-body">
             <form method="POST">
+              <!-- Dropdown to select a set -->
+              <div class="form-group">
+                <label for="set_id">Select Set:</label>
+                <select name="set_id" id="set_id" class="form-control">
+                  <option value="">-- Select a Set --</option>
+                  <?php
+                  // Fetch available sets from bulk_sets table
+                  $stmtSets = $pdo->query("SELECT id, set_name FROM bulk_sets ORDER BY set_name ASC");
+                  while ($set = $stmtSets->fetch(PDO::FETCH_ASSOC)) {
+                      echo '<option value="' . $set['id'] . '">' . htmlspecialchars($set['set_name']) . '</option>';
+                  }
+                  ?>
+                </select>
+              </div>
               <div class="form-group">
                 <label for="manual_numbers">Enter numbers (one per line):</label>
                 <textarea class="form-control" name="manual_numbers" rows="5" placeholder="+1234567890"></textarea>
@@ -246,7 +269,7 @@ $currentDateTime = date("l, F j, Y, g:i A");
           <th>ATM Left</th>
           <th>Last Used</th>
           <th>Created At</th>
-          <th>By User</th>
+          <th>Set Name</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -260,7 +283,7 @@ $currentDateTime = date("l, F j, Y, g:i A");
               <td><?php echo htmlspecialchars($number['atm_left']); ?></td>
               <td><?php echo htmlspecialchars($number['last_used']); ?></td>
               <td><?php echo htmlspecialchars($number['created_at']); ?></td>
-              <td><?php echo htmlspecialchars($number['by_user']); ?></td>
+              <td><?php echo htmlspecialchars($number['set_name']); ?></td>
               <td>
                 <form method="POST" style="display:inline;">
                   <button type="submit" name="delete_number" value="<?php echo $number['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this number?');">Delete</button>
