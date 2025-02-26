@@ -1,5 +1,5 @@
 <?php
-// bulk_regional_send.php
+// brs.php
 
 include('db.php'); // This file must initialize your $pdo connection
 
@@ -66,6 +66,7 @@ if (isset($_GET['stream'])) {
     
     sendSSE("STATUS", "Starting Bulk Regional OTP Process for Set ID: " . $set_id);
     
+    // Only the following 6 regions will be processed.
     $regions = array(
         "me-central-1", "ap-southeast-3",
         "ap-southeast-4", "eu-south-2", "eu-central-2", "ap-south-2"
@@ -161,7 +162,7 @@ if (isset($_GET['stream'])) {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Bulk Regional OTP Sending</title>
+  <title>BRS - Bulk Regional OTP Sending</title>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background: #f7f7f7; }
@@ -183,7 +184,7 @@ if (isset($_GET['stream'])) {
 </head>
 <body>
   <div class="container">
-    <h1>Bulk Regional OTP Sending</h1>
+    <h1>BRS - Bulk Regional OTP Sending</h1>
     <button id="updateButton" class="btnb btn-secondary">Mark as Completed</button>
     <div id="result"></div>
     <?php
@@ -287,8 +288,8 @@ if (isset($_GET['stream'])) {
          $('#summary').html('');
          $('#counters').html('');
          
-         // Start SSE connection with the selected set_id.
-         var evtSource = new EventSource("bulk_regional_send.php?ac_id=" + acId + "&user_id=" + userId + "&set_id=" + set_id + "&stream=1");
+         // Use this file (brs.php) for SSE connection.
+         var evtSource = new EventSource("brs.php?ac_id=" + acId + "&user_id=" + userId + "&set_id=" + set_id + "&stream=1");
          evtSource.onmessage = function(e) {
              var data = e.data;
              var parts = data.split("|");
@@ -326,9 +327,7 @@ if (isset($_GET['stream'])) {
           url: window.location.href,
           type: 'POST',
           dataType: 'json',
-          data: {
-            action: 'update_account'
-          },
+          data: { action: 'update_account' },
           success: function(response) {
             if (response.success) {
               $("#result").html("<p style='color: green;'>" + response.message + "</p>");
