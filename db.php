@@ -1,5 +1,6 @@
 <?php
 // db.php
+// $host     = '47.89.232.110';
 $host     = 'localhost';
 $dbname   = 'sender';
 $username = 'sender';
