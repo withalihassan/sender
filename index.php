@@ -146,6 +146,8 @@ if (isset($_POST['submit'])) {
                             <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
                             <button class='btn btn-success btn-sm claim-btn' data-id='" . $row['id'] . "' >Claim</button>
                             <a href='check_quality.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Check Quality</a>
+                            <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>En-Reg</a>  
+                            <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
                             <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
                         </td>";
                     echo "</tr>";
