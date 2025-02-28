@@ -11,14 +11,18 @@ if (isset($_POST['submit'])) {
     if (empty($set_name)) {
         $message = "Set Name is required.";
     } else {
-        $stmt = $pdo->prepare("INSERT INTO bulk_sets (set_name, description) VALUES (?, ?)");
-        if ($stmt->execute([$set_name, $description])) {
+        // Get current timestamp in Pakistan timezone
+        $created_at = (new DateTime('now', new DateTimeZone('Asia/Karachi')))->format('Y-m-d H:i:s');
+
+        $stmt = $pdo->prepare("INSERT INTO bulk_sets (set_name, description, created_at) VALUES (?, ?, ?)");
+        if ($stmt->execute([$set_name, $description, $created_at])) {
             $message = "New set added successfully!";
         } else {
             $message = "Error adding set.";
         }
     }
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="en">

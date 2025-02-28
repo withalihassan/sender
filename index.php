@@ -141,7 +141,9 @@ if (isset($_POST['submit'])) {
                 <?php
                     // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
-                    echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
+                    // echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
+                    echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('Asia/Karachi')))->format('d M g:i a') . "</td>";
+
                     echo "<td>
                             <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Chk-Status</button>
                             <button class='btn btn-success btn-sm claim-btn' data-id='" . $row['id'] . "' >Claim</button>
@@ -169,6 +171,7 @@ if (isset($_POST['submit'])) {
                     <th>Account Age</th>
                     <th>Credit Offset</th>
                     <th>Added Date</th>
+                    <th>Last Used</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -221,7 +224,14 @@ if (isset($_POST['submit'])) {
                 <?php
                     // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
-                    echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
+                    // echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
+                    // echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('Asia/Karachi')))->format('d M g:i a') . "</td>";
+                    echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('d M g:i a') . "</td>";
+                    echo "<td>" . (new DateTime($row['last_used'], new DateTimeZone('UTC')))
+    ->setTimezone(new DateTimeZone('Asia/Karachi'))
+    ->format('d M g:i a') . "</td>";
+
+                
                     echo "<td>
                   <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
                   <a href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Bulk Send</a>
