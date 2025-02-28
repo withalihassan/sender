@@ -1,22 +1,33 @@
 <?php
 // region_ajax_handler.php
 
+include('db.php'); // Ensure your $pdo connection is initialized
+
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+<<<<<<< HEAD
 // If not an internal call, set JSON header.
+=======
+>>>>>>> main
 if (empty($internal_call)) {
     header('Content-Type: application/json');
 }
 
+<<<<<<< HEAD
 // Include the AWS PHP SDK autoloader.
+=======
+>>>>>>> main
 require_once __DIR__ . '/aws/aws-autoloader.php';
 
 use Aws\Sns\SnsClient;
 use Aws\Exception\AwsException;
 
+<<<<<<< HEAD
 // Function to initialize the SNS client.
+=======
+>>>>>>> main
 function initSNS($awsKey, $awsSecret, $awsRegion) {
     try {
         $sns = new SnsClient([
@@ -30,6 +41,7 @@ function initSNS($awsKey, $awsSecret, $awsRegion) {
         return $sns;
     } catch (Exception $e) {
         return ['error' => 'Error initializing SNS client: ' . $e->getMessage()];
+<<<<<<< HEAD
     }
 }
 
@@ -60,6 +72,36 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $user_id, $p
     }
     $stmt = $pdo->prepare("SELECT atm_left FROM allowed_numbers WHERE id = ? AND by_user = ?");
     $stmt->execute([$id, $user_id]);
+=======
+    }
+}
+
+// Updated: The query now returns ATM left and a formatted date (YYYY-MM-DD).
+function fetch_numbers($region, $user_id, $pdo, $set_id = null) {
+    if (empty($region)) {
+        return ['error' => 'Region is required.'];
+    }
+    $query = "SELECT id, phone_number, atm_left, DATE_FORMAT(created_at, '%Y-%m-%d') as formatted_date FROM allowed_numbers WHERE status = 'fresh' AND atm_left > 0";
+    $params = array();
+    if (!empty($set_id)) {
+        $query .= " AND set_id = ?";
+        $params[] = $set_id;
+    }
+    $query .= " ORDER BY RAND() LIMIT 50";
+    
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $numbers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return ['success' => true, 'region' => $region, 'data' => $numbers];
+}
+
+function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $user_id, $pdo, $sns) {
+    if (!$id || empty($phone)) {
+        return ['status' => 'error', 'message' => 'Invalid phone number or ID.', 'region' => $region];
+    }
+    $stmt = $pdo->prepare("SELECT atm_left FROM allowed_numbers WHERE id = ?");
+    $stmt->execute([$id]);
+>>>>>>> main
     $numberData = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$numberData) {
         return ['status' => 'error', 'message' => 'Number not found in database.', 'region' => $region];
@@ -89,8 +131,13 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $user_id, $p
         $new_atm = $current_atm - 1;
         $new_status = ($new_atm == 0) ? 'used' : 'fresh';
         $last_used = date("Y-m-d H:i:s");
+<<<<<<< HEAD
         $updateStmt = $pdo->prepare("UPDATE allowed_numbers SET atm_left = ?, last_used = ?, status = ? WHERE id = ? AND by_user = ?");
         $updateStmt->execute([$new_atm, $last_used, $new_status, $id, $user_id]);
+=======
+        $updateStmt = $pdo->prepare("UPDATE allowed_numbers SET atm_left = ?, last_used = ?, status = ? WHERE id = ?");
+        $updateStmt->execute([$new_atm, $last_used, $new_status, $id]);
+>>>>>>> main
     } catch (PDOException $e) {
         return ['status' => 'error', 'message' => 'Database update error: ' . $e->getMessage(), 'region' => $region];
     }

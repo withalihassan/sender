@@ -23,28 +23,27 @@ if (!$account) {
 }
 $accountId = intval($_GET['ac_id']);
 // If an AJAX request is sent for updating the account:
-if (isset($_POST['action']) && $_POST['action'] === 'update_account') {
-  // Only proceed if a valid account id exists
-  if ($accountId > 0) {
-    // Prepare the update query:
-    // - Set status to 'completed'
-    // - Increment ac_score by 1 (assumes ac_score is a non-null numeric field)
-    // - Update last_used with the current timestamp
-    $stmt = $pdo->prepare("UPDATE accounts 
-                               SET ac_score = ac_score + 1, 
-                                   last_used = NOW() 
-                               WHERE id = :id");
-    try {
-      $stmt->execute([':id' => $accountId]);
-      echo json_encode(['success' => true, 'message' => 'Account updated successfully.']);
-    } catch (PDOException $e) {
-      echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $e->getMessage()]);
+  if (isset($_POST['action']) && $_POST['action'] === 'update_account') {
+    if ($accountId > 0) {
+      // Get current time in Pakistan timezone
+      $now = (new DateTime('now', new DateTimeZone('Asia/Karachi')))->format('Y-m-d H:i:s');
+      
+      $stmt = $pdo->prepare("UPDATE accounts 
+                             SET ac_score = ac_score + 1, 
+                                 last_used = :last_used 
+                             WHERE id = :id");
+      try {
+        $stmt->execute([':id' => $accountId, ':last_used' => $now]);
+        echo json_encode(['success' => true, 'message' => 'Account updated successfully.']);
+      } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $e->getMessage()]);
+      }
+    } else {
+      echo json_encode(['success' => false, 'message' => 'Invalid account ID.']);
     }
-  } else {
-    echo json_encode(['success' => false, 'message' => 'Invalid account ID.']);
+    exit;
   }
-  exit; // End the script for the AJAX request.
-}
+  
 // ===================================
 $aws_key    = htmlspecialchars($account['aws_key']);
 $aws_secret = htmlspecialchars($account['aws_secret']);

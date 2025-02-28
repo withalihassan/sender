@@ -9,6 +9,7 @@ $message = '';
 
 // Process Form Submissions
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+<<<<<<< HEAD
     // Bulk Import Numbers - Only Manual Entry is allowed now
     if (isset($_POST['import_numbers'])) {
         $manual = trim($_POST['manual_numbers']);
@@ -96,48 +97,149 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         } catch (PDOException $e) {
             $message = "Error sending OTP: " . $e->getMessage();
+=======
+  // Bulk Import Numbers - Only Manual Entry is allowed now
+  if (isset($_POST['import_numbers'])) {
+    $manual = trim($_POST['manual_numbers']);
+    $set_id = trim($_POST['set_id']);  // Get the selected set from the dropdown
+    if ($manual != '' && $set_id != '') {
+      $lines = explode("\n", $manual);
+      $importedCount = 0;
+      $skippedCount = 0;
+      foreach ($lines as $line) {
+        $num = trim($line);
+        if ($num != '') {
+          if ($num[0] !== '+') {
+            $num = '+' . $num;
+          }
+          // Check if the number already exists for this user
+          $stmtCheck = $pdo->prepare("SELECT id FROM allowed_numbers WHERE phone_number = ? AND by_user = ?");
+          $stmtCheck->execute([$num, $session_id]);
+          if ($stmtCheck->rowCount() > 0) {
+            $skippedCount++;
+            continue;  // Skip duplicate
+          }
+          try {
+            // Get current timestamp in Pakistan timezone
+            $created_at = (new DateTime('now', new DateTimeZone('Asia/Karachi')))->format('Y-m-d H:i:s');
+
+            // Insert new number with atm_left = 10, include set_id and the created_at timestamp
+            $stmt = $pdo->prepare("INSERT INTO allowed_numbers (phone_number, status, atm_left, by_user, set_id, created_at) VALUES (?, 'fresh', 10, ?, ?, ?)");
+            $stmt->execute([$num, $session_id, $set_id, $created_at]);
+            $importedCount++;
+          } catch (PDOException $e) {
+            // Optionally log error and count as skipped
+            $skippedCount++;
+          }
         }
+      }
+      $message = "Imported $importedCount numbers from manual input.";
+      if ($skippedCount > 0) {
+        $message .= " Skipped $skippedCount duplicate numbers.";
+      }
+    } else {
+      $message = "Please provide numbers and select a set.";
     }
+  }
+  // Delete a single number
+  elseif (isset($_POST['delete_number'])) {
+    $id = $_POST['delete_number'];
+    try {
+      $stmt = $pdo->prepare("DELETE FROM allowed_numbers WHERE id = ? AND by_user = ?");
+      $stmt->execute([$id, $session_id]);
+      $message = "Number deleted successfully.";
+    } catch (PDOException $e) {
+      $message = "Error deleting number: " . $e->getMessage();
+    }
+  }
+  // Bulk Delete All Numbers
+  elseif (isset($_POST['delete_all'])) {
+    try {
+      $stmt = $pdo->prepare("DELETE FROM allowed_numbers WHERE by_user = ?");
+      $stmt->execute([$session_id]);
+      $deletedCount = $stmt->rowCount();
+      $message = "Bulk deleted $deletedCount numbers successfully.";
+    } catch (PDOException $e) {
+      $message = "Error in bulk deleting numbers: " . $e->getMessage();
+    }
+  }
+  // Send OTP (mark number used) and decrement atm_left by 1
+  elseif (isset($_POST['send_otp'])) {
+    $id = $_POST['send_otp'];
+    try {
+      // Fetch current allowed number details
+      $stmt = $pdo->prepare("SELECT atm_left, phone_number FROM allowed_numbers WHERE id = ? AND by_user = ?");
+      $stmt->execute([$id, $session_id]);
+      $numberData = $stmt->fetch(PDO::FETCH_ASSOC);
+      if ($numberData) {
+        if ($numberData['atm_left'] > 0) {
+          $new_atm_left = $numberData['atm_left'] - 1;
+          $new_status = ($new_atm_left == 0) ? 'used' : 'fresh';
+          // Update allowed number: decrement atm_left, update last_used and status if needed
+          $stmt = $pdo->prepare("UPDATE allowed_numbers SET atm_left = ?, last_used = NOW(), status = ? WHERE id = ? AND by_user = ?");
+          $stmt->execute([$new_atm_left, $new_status, $id, $session_id]);
+
+          $message = "OTP sent successfully. Remaining attempts updated.";
+        } else {
+          $message = "This number has no OTP attempts remaining.";
+>>>>>>> main
+        }
+      } else {
+        $message = "Invalid number.";
+      }
+    } catch (PDOException $e) {
+      $message = "Error sending OTP: " . $e->getMessage();
+    }
+  }
 }
 
 // Fetch Stats for Current User
 try {
-    // Fresh numbers count
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM allowed_numbers WHERE status = 'fresh' AND by_user = ?");
-    $stmt->execute([$session_id]);
-    $freshCount = $stmt->fetchColumn();
+  // Fresh numbers count
+  $stmt = $pdo->prepare("SELECT COUNT(*) FROM allowed_numbers WHERE status = 'fresh' AND by_user = ?");
+  $stmt->execute([$session_id]);
+  $freshCount = $stmt->fetchColumn();
 
-    // Used numbers count
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM allowed_numbers WHERE status = 'used' AND by_user = ?");
-    $stmt->execute([$session_id]);
-    $usedNumbers = $stmt->fetchColumn();
+  // Used numbers count
+  $stmt = $pdo->prepare("SELECT COUNT(*) FROM allowed_numbers WHERE status = 'used' AND by_user = ?");
+  $stmt->execute([$session_id]);
+  $usedNumbers = $stmt->fetchColumn();
 
-    // Total numbers count
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM allowed_numbers WHERE by_user = ?");
-    $stmt->execute([$session_id]);
-    $totalNumbers = $stmt->fetchColumn();
+  // Total numbers count
+  $stmt = $pdo->prepare("SELECT COUNT(*) FROM allowed_numbers WHERE by_user = ?");
+  $stmt->execute([$session_id]);
+  $totalNumbers = $stmt->fetchColumn();
 
-    // OTPs Sent Today calculated as (10 - atm_left) for numbers used today
-    $stmt = $pdo->prepare("SELECT SUM(10 - atm_left) FROM allowed_numbers WHERE by_user = ? AND DATE(last_used) = CURDATE()");
-    $stmt->execute([$session_id]);
-    $todayOTPs = $stmt->fetchColumn();
-    if (!$todayOTPs) {
-        $todayOTPs = 0;
-    }
+  // OTPs Sent Today calculated as (10 - atm_left) for numbers used today
+  $stmt = $pdo->prepare("SELECT SUM(10 - atm_left) FROM allowed_numbers WHERE by_user = ? AND DATE(last_used) = CURDATE()");
+  $stmt->execute([$session_id]);
+  $todayOTPs = $stmt->fetchColumn();
+  if (!$todayOTPs) {
+    $todayOTPs = 0;
+  }
 } catch (PDOException $e) {
-    $message = "Error fetching stats: " . $e->getMessage();
+  $message = "Error fetching stats: " . $e->getMessage();
 }
 
 // Fetch Numbers Globally:
 // - If an id is provided in the URL (e.g. ?id=2), fetch only numbers for that specific set.
 // - If no id is provided, fetch all numbers that belong to any set (i.e. where set_id IS NOT NULL).
 if (isset($_GET['id']) && !empty($_GET['id'])) {
+<<<<<<< HEAD
     $set_id = $_GET['id'];
     $stmt = $pdo->prepare("SELECT an.*, bs.set_name FROM allowed_numbers an LEFT JOIN bulk_sets bs ON an.set_id = bs.id WHERE an.set_id = ? ORDER BY an.id DESC");
     $stmt->execute([$set_id]);
 } else {
     $stmt = $pdo->prepare("SELECT an.*, bs.set_name FROM allowed_numbers an LEFT JOIN bulk_sets bs ON an.set_id = bs.id WHERE an.set_id IS NOT NULL ORDER BY an.id DESC");
     $stmt->execute();
+=======
+  $set_id = $_GET['id'];
+  $stmt = $pdo->prepare("SELECT an.*, bs.set_name FROM allowed_numbers an LEFT JOIN bulk_sets bs ON an.set_id = bs.id WHERE an.set_id = ? ORDER BY an.id DESC");
+  $stmt->execute([$set_id]);
+} else {
+  $stmt = $pdo->prepare("SELECT an.*, bs.set_name FROM allowed_numbers an LEFT JOIN bulk_sets bs ON an.set_id = bs.id WHERE an.set_id IS NOT NULL ORDER BY an.id DESC");
+  $stmt->execute();
+>>>>>>> main
 }
 $numbers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -146,6 +248,7 @@ $currentDateTime = date("l, F j, Y, g:i A");
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>My Numbers</title>
@@ -154,21 +257,44 @@ $currentDateTime = date("l, F j, Y, g:i A");
   <!-- DataTables CSS for pagination -->
   <link rel="stylesheet" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.min.css">
   <style>
-    body { background-color: #f8f9fa; }
-    .container { margin-top: 30px; }
+    body {
+      background-color: #f8f9fa;
+    }
+
+    .container {
+      margin-top: 30px;
+    }
+
     /* Stats Boxes */
     .stats-box {
-      padding: 20px; 
-      border-radius: 8px; 
-      color: #fff; 
+      padding: 20px;
+      border-radius: 8px;
+      color: #fff;
       text-align: center;
       margin-bottom: 20px;
     }
-    .stats-box h4 { margin-bottom: 0; }
-    .stats-fresh { background-color: #28a745; }
-    .stats-used { background-color: #dc3545; }
-    .stats-total { background-color: #17a2b8; }
-    .stats-today { background-color: #ffc107; color: #000; }
+
+    .stats-box h4 {
+      margin-bottom: 0;
+    }
+
+    .stats-fresh {
+      background-color: #28a745;
+    }
+
+    .stats-used {
+      background-color: #dc3545;
+    }
+
+    .stats-total {
+      background-color: #17a2b8;
+    }
+
+    .stats-today {
+      background-color: #ffc107;
+      color: #000;
+    }
+
     /* Collapsible Form Section */
     .collapse-header {
       cursor: pointer;
@@ -178,11 +304,13 @@ $currentDateTime = date("l, F j, Y, g:i A");
       border-radius: 4px;
       margin-bottom: 15px;
     }
+
     .collapse-header:hover {
       background-color: #0056b3;
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h2 class="mb-4">Manage Allowed Numbers</h2>
@@ -238,7 +366,11 @@ $currentDateTime = date("l, F j, Y, g:i A");
                   // Fetch available sets from bulk_sets table
                   $stmtSets = $pdo->query("SELECT id, set_name FROM bulk_sets ORDER BY set_name ASC");
                   while ($set = $stmtSets->fetch(PDO::FETCH_ASSOC)) {
+<<<<<<< HEAD
                       echo '<option value="' . $set['id'] . '">' . htmlspecialchars($set['set_name']) . '</option>';
+=======
+                    echo '<option value="' . $set['id'] . '">' . htmlspecialchars($set['set_name']) . '</option>';
+>>>>>>> main
                   }
                   ?>
                 </select>
@@ -297,7 +429,9 @@ $currentDateTime = date("l, F j, Y, g:i A");
             </tr>
           <?php endforeach; ?>
         <?php else: ?>
-          <tr><td colspan="8" class="text-center">No numbers found.</td></tr>
+          <tr>
+            <td colspan="8" class="text-center">No numbers found.</td>
+          </tr>
         <?php endif; ?>
       </tbody>
     </table>
@@ -309,8 +443,9 @@ $currentDateTime = date("l, F j, Y, g:i A");
   <script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
   <script>
     $(document).ready(function() {
-        $('#numbersTable').DataTable();
+      $('#numbersTable').DataTable();
     });
   </script>
 </body>
+
 </html>

@@ -62,8 +62,8 @@ if (isset($_POST['submit'])) {
             if ($count > 0) {
                 $message = "Error: Duplicate Account or this account already exists.";
             } else {
-                // Use current timestamp for the added_date field
-                $added_date = date("Y-m-d H:i:s");
+                // Use current timestamp for the added_date field in Pakistan timezone
+                $added_date = (new DateTime('now', new DateTimeZone('Asia/Karachi')))->format('Y-m-d H:i:s');
 
                 // Insert the account into the database with default status "active"
                 $stmt = $pdo->prepare("INSERT INTO accounts (by_user, aws_key, aws_secret, account_id, status, ac_state, ac_score, ac_age, cr_offset, added_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -124,7 +124,7 @@ if (isset($_POST['submit'])) {
 <body>
     <?php include "./header.php"; ?>
     <div class="container-fluid" style="padding: 4%;">
-        <h1>Welcome <?php echo ucfirst($user['name']);?>!</h1>
+        <h1>Welcome <?php echo ucfirst($user['name']); ?>!</h1>
         <h2 class="mt-4">Add AWS Account</h2>
         <?php if (!empty($message)) {
             echo '<div class="alert alert-info">' . $message . '</div>';

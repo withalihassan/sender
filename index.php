@@ -141,11 +141,23 @@ if (isset($_POST['submit'])) {
                 <?php
                     // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
+<<<<<<< HEAD
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
                     echo "<td>
                             <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
                             <button class='btn btn-success btn-sm claim-btn' data-id='" . $row['id'] . "' >Claim</button>
                             <a href='check_quality.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Check Quality</a>
+=======
+                    // echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
+                    echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('Asia/Karachi')))->format('d M g:i a') . "</td>";
+
+                    echo "<td>
+                            <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Chk-Status</button>
+                            <button class='btn btn-success btn-sm claim-btn' data-id='" . $row['id'] . "' >Claim</button>
+                            <a href='check_quality.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Chk-Qlty</a>
+                            <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>En-Reg</a>  
+                            <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
+>>>>>>> main
                             <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
                         </td>";
                     echo "</tr>";
@@ -167,6 +179,10 @@ if (isset($_POST['submit'])) {
                     <th>Account Age</th>
                     <th>Credit Offset</th>
                     <th>Added Date</th>
+<<<<<<< HEAD
+=======
+                    <th>Last Used</th>
+>>>>>>> main
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -219,12 +235,28 @@ if (isset($_POST['submit'])) {
                 <?php
                     // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
+<<<<<<< HEAD
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
                     echo "<td>
                   <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
                   <a href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=".$session_id."' target='_blank' class='btn btn-secondary btn-sm'>Bulk Send</a>
                   <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=".$session_id."' target='_blank' class='btn btn-success btn-sm'>Bulk Regional Send</a>
                   <a href='brs.php?ac_id=" . $row['id'] . "&user_id=".$session_id."' target='_blank' class='btn btn-success btn-sm'>BRS</a>
+=======
+                    // echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
+                    // echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('Asia/Karachi')))->format('d M g:i a') . "</td>";
+                    echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('d M g:i a') . "</td>";
+                    echo "<td>" . (new DateTime($row['last_used'], new DateTimeZone('UTC')))
+    ->setTimezone(new DateTimeZone('Asia/Karachi'))
+    ->format('d M g:i a') . "</td>";
+
+                
+                    echo "<td>
+                  <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
+                  <a href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Bulk Send</a>
+                  <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>Bulk Regional Send</a>
+                  <a href='brs.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
+>>>>>>> main
                   <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>EnableReg</a>
                   <a href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>NodeSender</a>
                   <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
