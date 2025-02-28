@@ -226,10 +226,10 @@ if (isset($_POST['submit'])) {
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
                     // echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
                     // echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('Asia/Karachi')))->format('d M g:i a') . "</td>";
-                    echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('d M g:i a') . "</td>";
-                    echo "<td>" . (new DateTime($row['last_used'], new DateTimeZone('UTC')))
-    ->setTimezone(new DateTimeZone('Asia/Karachi'))
-    ->format('d M g:i a') . "</td>";
+                    // echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('d M g:i a') . "</td>";
+                    echo "<td>" . (new DateTime($row['added_date']))->format('d M g:i a') . "</td>";
+                    echo "<td>" . (new DateTime($row['last_used']))->format('d M g:i a') . "</td>";
+
 
                 
                     echo "<td>
