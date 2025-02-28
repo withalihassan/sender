@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 include  "./session.php";
 // index.php
 include "./header.php";
@@ -169,6 +173,7 @@ if (isset($_POST['submit'])) {
                     <th>State</th>
                     <th>Account Score</th>
                     <th>Account Age</th>
+                    <th>Next Atm</th>
                     <th>Credit Offset</th>
                     <th>Added Date</th>
                     <th>Last Used</th>
@@ -221,17 +226,40 @@ if (isset($_POST['submit'])) {
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
                     ?>
+                    <?php
+                    if (empty($row['last_used'])) {
+                        die("Error: No last_used value found");
+                    }
+                    // 2. Create DateTime object with validation
+                    $initial = DateTime::createFromFormat(
+                        'Y-m-d H:i:s',
+                        $row['last_used'],
+                        new DateTimeZone('Asia/Karachi')
+                    );
+
+                    if (!$initial) {
+                        die("Invalid date format in last_used: " . htmlspecialchars($row['last_used']));
+                    }
+                    // 3. Now clone the validated object
+                    $expiry = clone $initial;
+                    $expiry->modify('+1 day');
+
+                    // Rest of the code...
+                    $now = new DateTime();
+                    $diff = $now->diff($expiry);
+
+                    if ($diff->invert) {
+                        echo "<td><span class='badge badge-success'>Ready to go</span></td>";
+                    } else {
+                        $hours = ($diff->days * 24) + $diff->h;
+                        echo "<td><span class='badge badge-secondary'>{$hours}H {$diff->i}m left</span></td>";
+                    }
+                    ?>
                 <?php
-                    // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
+
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
-                    // echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
-                    // echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('Asia/Karachi')))->format('d M g:i a') . "</td>";
-                    // echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('d M g:i a') . "</td>";
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M g:i a') . "</td>";
                     echo "<td>" . (new DateTime($row['last_used']))->format('d M g:i a') . "</td>";
-
-
-                
                     echo "<td>
                   <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
                   <a href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Bulk Send</a>
