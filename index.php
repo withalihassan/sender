@@ -109,13 +109,13 @@ if (isset($_POST['submit'])) {
                     // echo "<td>" . htmlspecialchars($row['ac_state']) . "</td>";///
                 ?>
                     <?php
-                    //Account Statuus , Active or suspended
+                    // Account Status: Active or Suspended
                     if ($row['status'] == 'active') {
                         echo "<td><span class='badge badge-success'>Active</span></td>";
                     } else {
                         echo "<td><span class='badge badge-danger'>Suspended</span></td>";
                     }
-                    /// Account State,  > Orphan , Claimed , Rejected
+                    // Account State: Orphan, Claimed, Rejected
                     if ($row['ac_state'] == 'orphan') {
                         echo "<td><span class='badge badge-warning'>Orphan</span></td>";
                     } else if ($row['ac_state'] == 'claimed') {
@@ -123,21 +123,19 @@ if (isset($_POST['submit'])) {
                     } else {
                         echo "<td><span class='badge badge-danger'>Rejected</span></td>";
                     }
-                    //Account score like how many time We send a  otp on it
+                    // Account Score (how many times an OTP was sent)
                     echo "<td>" . htmlspecialchars($row['ac_score']) . "</td>";
 
-                    //Account age is  suspended theen differeenace betqween suspended_datee and Added_date otheerwise  current date and Added  date
+                    // Account Age calculation
                     if ($row['status'] == 'active') {
                         $td_Added_date = new DateTime($row['added_date']);
                         $td_current_date = new DateTime(); // current date and time
-
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     } else {
-                        //Means if suspended then calculate age based  on suspended date
+                        // Calculate age based on suspended date if suspended
                         $td_Added_date = new DateTime($row['added_date']);
                         $td_current_date = new DateTime($row['suspended_date']); // current date and time
-
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
@@ -145,7 +143,7 @@ if (isset($_POST['submit'])) {
                 <?php
                     // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
-                    // echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
+                    // Format Added Date with timezone adjustment
                     echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('Asia/Karachi')))->format('d M g:i a') . "</td>";
 
                     echo "<td>
@@ -155,7 +153,7 @@ if (isset($_POST['submit'])) {
                             <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>En-Reg</a>  
                             <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
                             <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
-                        </td>";
+                          </td>";
                     echo "</tr>";
                 }
                 ?>
@@ -193,13 +191,13 @@ if (isset($_POST['submit'])) {
                     // echo "<td>" . htmlspecialchars($row['ac_state']) . "</td>";///
                 ?>
                     <?php
-                    //Account Statuus , Active or suspended
+                    // Account Status: Active or Suspended
                     if ($row['status'] == 'active') {
                         echo "<td><span class='badge badge-success'>Active</span></td>";
                     } else {
                         echo "<td><span class='badge badge-danger'>Suspended</span></td>";
                     }
-                    /// Account State,  > Orphan , Claimed , Rejected
+                    // Account State: Orphan, Claimed, Rejected
                     if ($row['ac_state'] == 'orphan') {
                         echo "<td><span class='badge badge-warning'>Orphan</span></td>";
                     } else if ($row['ac_state'] == 'claimed') {
@@ -207,21 +205,19 @@ if (isset($_POST['submit'])) {
                     } else {
                         echo "<td><span class='badge badge-danger'>Rejected</span></td>";
                     }
-                    //Account score like how many time We send a  otp on it
+                    // Account Score (how many times an OTP was sent)
                     echo "<td>" . htmlspecialchars($row['ac_score']) . "</td>";
 
-                    //Account age is  suspended theen differeenace betqween suspended_datee and Added_date otheerwise  current date and Added  date
+                    // Account Age calculation
                     if ($row['status'] == 'active') {
                         $td_Added_date = new DateTime($row['added_date']);
                         $td_current_date = new DateTime(); // current date and time
-
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     } else {
-                        //Means if suspended then calculate age based  on suspended date
+                        // Calculate age based on suspended date if suspended
                         $td_Added_date = new DateTime($row['added_date']);
                         $td_current_date = new DateTime($row['suspended_date']); // current date and time
-
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
@@ -230,7 +226,7 @@ if (isset($_POST['submit'])) {
                     if (empty($row['last_used'])) {
                         die("Error: No last_used value found");
                     }
-                    // 2. Create DateTime object with validation
+                    // Create DateTime object with validation
                     $initial = DateTime::createFromFormat(
                         'Y-m-d H:i:s',
                         $row['last_used'],
@@ -240,11 +236,11 @@ if (isset($_POST['submit'])) {
                     if (!$initial) {
                         die("Invalid date format in last_used: " . htmlspecialchars($row['last_used']));
                     }
-                    // 3. Now clone the validated object
+                    // Clone the validated object and add one day
                     $expiry = clone $initial;
                     $expiry->modify('+1 day');
 
-                    // Rest of the code...
+                    // Calculate time difference
                     $now = new DateTime();
                     $diff = $now->diff($expiry);
 
@@ -256,19 +252,18 @@ if (isset($_POST['submit'])) {
                     }
                     ?>
                 <?php
-
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M g:i a') . "</td>";
                     echo "<td>" . (new DateTime($row['last_used']))->format('d M g:i a') . "</td>";
                     echo "<td>
-                  <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
-                  <a href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Bulk Send</a>
-                  <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>Bulk Regional Send</a>
-                  <a href='brs.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
-                  <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>EnableReg</a>
-                  <a href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>NodeSender</a>
-                  <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
-                </td>";
+                          <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
+                          <a href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Bulk Send</a>
+                          <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>Bulk Regional Send</a>
+                          <a href='brs.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
+                          <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>EnableReg</a>
+                          <a href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>NodeSender</a>
+                          <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
+                        </td>";
                     echo "</tr>";
                 }
                 ?>
@@ -280,19 +275,55 @@ if (isset($_POST['submit'])) {
         $(document).ready(function() {
             // Initialize DataTables with pagination
             $('#accountsTable').DataTable();
-            // Initialize DataTables with pagination
             $('#myaccountsTable').DataTable();
+        });
 
-            // Delete account event handler
+        // Delegated event binding for dynamically generated elements - Check Status
+        $(document).on('click', '.check-status-btn', function(e) {
+            e.preventDefault(); // Prevent default behavior
+            var id = $(this).data('id');
+            $.ajax({
+                url: './provider/scripts/check_status.php',
+                type: 'POST',
+                data: { id: id },
+                success: function(response) {
+                    alert(response);
+                    // Removed location.reload() to avoid page refresh
+                },
+                error: function() {
+                    alert("An error occurred while checking the account status.");
+                }
+            });
+        });
+
+        // Direct binding for Claim button (remains unchanged)
+        $(document).ready(function() {
+            $(".claim-btn").click(function() {
+                var accountId = $(this).data("id");
+                $.ajax({
+                    url: "claim_account.php",
+                    type: "POST",
+                    data: { id: accountId },
+                    success: function(response) {
+                        alert(response);
+                        location.reload();
+                    },
+                    error: function() {
+                        alert("An error occurred while claiming the account.");
+                    }
+                });
+            });
+        });
+
+        // Delete account event handler remains unchanged
+        $(document).ready(function() {
             $('.delete-btn').click(function() {
                 if (confirm("Are you sure you want to delete this account?")) {
                     var id = $(this).data('id');
                     $.ajax({
                         url: './scripts/delete_account.php',
                         type: 'POST',
-                        data: {
-                            id: id
-                        },
+                        data: { id: id },
                         success: function(response) {
                             alert(response);
                             location.reload();
@@ -302,44 +333,6 @@ if (isset($_POST['submit'])) {
                         }
                     });
                 }
-            });
-
-            // Check account status event handler
-            $('.check-status-btn').click(function() {
-                var id = $(this).data('id');
-                $.ajax({
-                    url: './provider/scripts/check_status.php',
-                    type: 'POST',
-                    data: {
-                        id: id
-                    },
-                    success: function(response) {
-                        alert(response);
-                        location.reload();
-                    },
-                    error: function() {
-                        alert("An error occurred while checking the account status.");
-                    }
-                });
-            });
-        });
-        $(document).ready(function() {
-            $(".claim-btn").click(function() {
-                var accountId = $(this).data("id");
-                $.ajax({
-                    url: "claim_account.php",
-                    type: "POST",
-                    data: {
-                        id: accountId
-                    },
-                    success: function(response) {
-                        alert(response);
-                        location.reload();
-                    },
-                    error: function() {
-                        alert("An error occurred while claiming the account.");
-                    }
-                });
             });
         });
     </script>
