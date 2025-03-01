@@ -79,6 +79,72 @@ if (isset($_POST['submit'])) {
 </head>
 
 <body>
+    <div class="container mt-3">
+        <div class="row">
+            <div class="col-6 col-md-2 mb-3">
+                <div class="card text-center bg-info text-white">
+                    <div class="card-body py-2">
+                        <?php
+                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(added_date)=CURDATE()"); ?>
+                        <h6 class="card-title">Today New</h6>
+                        <p class="card-text"><strong><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></strong></p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2 mb-3">
+                <div class="card text-center bg-warning text-dark">
+                    <div class="card-body py-2">
+                        <?php
+                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(suspended_date)=CURDATE()"); ?>
+                        <h6 class="card-title">Susp. Today</h6>
+                        <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2 mb-3">
+                <div class="card text-center bg-success text-white">
+                    <div class="card-body py-2">
+                        <?php
+                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE status='active'"); ?>
+                        <h6 class="card-title">Total Active</h6>
+                        <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2 mb-3">
+                <div class="card text-center bg-secondary text-white">
+                    <div class="card-body py-2">
+                        <?php
+                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(last_used)=CURDATE()"); ?>
+                        <h6 class="card-title">Done Today</h6>
+                        <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2 mb-3">
+                <div class="card text-center bg-primary text-white">
+                    <div class="card-body py-2">
+                        <?php
+                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE ac_state='orphan'"); ?>
+                        <h6 class="card-title">Claimable</h6>
+                        <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2 mb-3">
+                <div class="card text-center bg-danger text-white">
+                    <div class="card-body py-2">
+                        <?php
+                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE status='suspended'"); 
+                        ?>
+                        <h6 class="card-title">Total Susp.</h6>
+                        <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container-fluid" style="padding: 4%;">
         <h2 class="mt-4">Claim Accounts</h2>
         <table id="accountsTable" class="display">
@@ -181,7 +247,7 @@ if (isset($_POST['submit'])) {
             <tbody>
                 <?php
                 // Fetch all accounts from the database and display them
-                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'claimed' AND claimed_by = '$session_id' ORDER  by 1 DESC");
+                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'claimed' AND claimed_by = '$session_id' AND status='active' ORDER  by 1 DESC");
                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     echo "<tr>";
                     echo "<td>" . $row['id'] . "</td>";
@@ -221,36 +287,38 @@ if (isset($_POST['submit'])) {
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
-                    ?>
-                    <?php
+                    ?><?php
                     if (empty($row['last_used'])) {
-                        die("Error: No last_used value found");
-                    }
-                    // Create DateTime object with validation
-                    $initial = DateTime::createFromFormat(
-                        'Y-m-d H:i:s',
-                        $row['last_used'],
-                        new DateTimeZone('Asia/Karachi')
-                    );
-
-                    if (!$initial) {
-                        die("Invalid date format in last_used: " . htmlspecialchars($row['last_used']));
-                    }
-                    // Clone the validated object and add one day
-                    $expiry = clone $initial;
-                    $expiry->modify('+1 day');
-
-                    // Calculate time difference
-                    $now = new DateTime();
-                    $diff = $now->diff($expiry);
-
-                    if ($diff->invert) {
-                        echo "<td><span class='badge badge-success'>Ready to go</span></td>";
+                        echo "<td><span class='badge badge-warning'>No date provided</span></td>";
                     } else {
-                        $hours = ($diff->days * 24) + $diff->h;
-                        echo "<td><span class='badge badge-secondary'>{$hours}H {$diff->i}m left</span></td>";
+                        // Create DateTime object with validation
+                        $initial = DateTime::createFromFormat(
+                            'Y-m-d H:i:s',
+                            $row['last_used'],
+                            new DateTimeZone('Asia/Karachi')
+                        );
+                    
+                        if (!$initial) {
+                            echo "<td><span class='badge badge-danger'>Invalid date format</span></td>";
+                        } else {
+                            // Clone the validated object and add one day
+                            $expiry = clone $initial;
+                            $expiry->modify('+1 day');
+                    
+                            // Calculate time difference
+                            $now = new DateTime();
+                            $diff = $now->diff($expiry);
+                    
+                            if ($diff->invert) {
+                                echo "<td><span class='badge badge-success'>Ready to go</span></td>";
+                            } else {
+                                $hours = ($diff->days * 24) + $diff->h;
+                                echo "<td><span class='badge badge-secondary'>{$hours}H {$diff->i}m left</span></td>";
+                            }
+                        }
                     }
                     ?>
+                    
                 <?php
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M g:i a') . "</td>";
@@ -285,7 +353,9 @@ if (isset($_POST['submit'])) {
             $.ajax({
                 url: './provider/scripts/check_status.php',
                 type: 'POST',
-                data: { id: id },
+                data: {
+                    id: id
+                },
                 success: function(response) {
                     alert(response);
                     // Removed location.reload() to avoid page refresh
@@ -303,7 +373,9 @@ if (isset($_POST['submit'])) {
                 $.ajax({
                     url: "claim_account.php",
                     type: "POST",
-                    data: { id: accountId },
+                    data: {
+                        id: accountId
+                    },
                     success: function(response) {
                         alert(response);
                         location.reload();
@@ -323,7 +395,9 @@ if (isset($_POST['submit'])) {
                     $.ajax({
                         url: './scripts/delete_account.php',
                         type: 'POST',
-                        data: { id: id },
+                        data: {
+                            id: id
+                        },
                         success: function(response) {
                             alert(response);
                             location.reload();
