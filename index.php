@@ -76,6 +76,10 @@ if (isset($_POST['submit'])) {
     <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
     <!-- DataTables JS -->
     <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.js"></script>
+    <!-- <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
 </head>
 
 <body>
@@ -135,7 +139,7 @@ if (isset($_POST['submit'])) {
                 <div class="card text-center bg-danger text-white">
                     <div class="card-body py-2">
                         <?php
-                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE status='suspended'"); 
+                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE status='suspended'");
                         ?>
                         <h6 class="card-title">Total Susp.</h6>
                         <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
@@ -240,8 +244,8 @@ if (isset($_POST['submit'])) {
                     <th>Next Atm</th>
                     <th>Credit Offset</th>
                     <th>Added Date</th>
-                    <th>Last Used</th>
                     <th>Actions</th>
+                    <th>Last Used</th>
                 </tr>
             </thead>
             <tbody>
@@ -288,50 +292,68 @@ if (isset($_POST['submit'])) {
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
                     ?><?php
-                    if (empty($row['last_used'])) {
-                        echo "<td><span class='badge badge-warning'>No date provided</span></td>";
-                    } else {
-                        // Create DateTime object with validation
-                        $initial = DateTime::createFromFormat(
-                            'Y-m-d H:i:s',
-                            $row['last_used'],
-                            new DateTimeZone('Asia/Karachi')
-                        );
-                    
-                        if (!$initial) {
-                            echo "<td><span class='badge badge-danger'>Invalid date format</span></td>";
+                        if (empty($row['last_used'])) {
+                            echo "<td><span class='badge badge-warning'>No date provided</span></td>";
                         } else {
-                            // Clone the validated object and add one day
-                            $expiry = clone $initial;
-                            $expiry->modify('+1 day');
-                    
-                            // Calculate time difference
-                            $now = new DateTime();
-                            $diff = $now->diff($expiry);
-                    
-                            if ($diff->invert) {
-                                echo "<td><span class='badge badge-success'>Ready to go</span></td>";
+                            // Create DateTime object with validation
+                            $initial = DateTime::createFromFormat(
+                                'Y-m-d H:i:s',
+                                $row['last_used'],
+                                new DateTimeZone('Asia/Karachi')
+                            );
+
+                            if (!$initial) {
+                                echo "<td><span class='badge badge-danger'>Invalid date format</span></td>";
                             } else {
-                                $hours = ($diff->days * 24) + $diff->h;
-                                echo "<td><span class='badge badge-secondary'>{$hours}H {$diff->i}m left</span></td>";
+                                // Clone the validated object and add one day
+                                $expiry = clone $initial;
+                                $expiry->modify('+1 day');
+
+                                // Calculate time difference
+                                $now = new DateTime();
+                                $diff = $now->diff($expiry);
+
+                                if ($diff->invert) {
+                                    echo "<td><span class='badge badge-success'>Ready to go</span></td>";
+                                } else {
+                                    $hours = ($diff->days * 24) + $diff->h;
+                                    echo "<td><span class='badge badge-secondary'>{$hours}H {$diff->i}m left</span></td>";
+                                }
                             }
                         }
-                    }
-                    ?>
-                    
+                        ?>
+
                 <?php
-                    echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
+                    echo "<td>" . htmlspecialchars($row['cr_offset']) ."</td>";
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M g:i a') . "</td>";
-                    echo "<td>" . (new DateTime($row['last_used']))->format('d M g:i a') . "</td>";
+                    // echo "<td>
+                    //       <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
+                    //       <a href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Bulk Send</a>
+                    //       <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>Bulk Regional Send</a>
+                    //       <a href='brs.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
+                    //       <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>EnableReg</a>
+                    //       <a href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>NodeSender</a>
+                    //       <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
+                    //     </td>";
                     echo "<td>
-                          <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
-                          <a href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Bulk Send</a>
-                          <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>Bulk Regional Send</a>
-                          <a href='brs.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
-                          <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>EnableReg</a>
-                          <a href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>NodeSender</a>
-                          <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
-                        </td>";
+                            <div class='dropdown'>
+                                <button class='btn btn-info btn-sm dropdown-toggle' type='button' id='actionDropdown{$row['id']}' data-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>
+                                Actions
+                                </button>
+                                <div class='dropdown-menu' aria-labelledby='actionDropdown{$row['id']}'>
+                                <a class='dropdown-item' href='manage_ac.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Manage Account</a>
+                                <a class='dropdown-item check-status-btn' href='#' data-id='" . $row['id'] . "'>Check Status</a>
+                                <a class='dropdown-item' href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Bulk Send</a>
+                                <a class='dropdown-item' href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Bulk Regional Send</a>
+                                <a class='dropdown-item' href='brs.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>BRS</a>
+                                <a class='dropdown-item' href='aws_account.php?id=" . $row['id'] . "' target='_blank'>EnableReg</a>
+                                <a class='dropdown-item' href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank'>NodeSender</a>
+                                <a class='dropdown-item' href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank'>Clear</a>
+                                </div>
+                            </div>
+                            </td>";
+                    echo "<td>" . (new DateTime($row['last_used']))->format('d M g:i a') . "</td>";
+
                     echo "</tr>";
                 }
                 ?>

@@ -1,19 +1,20 @@
 <?php
 // bulk_regional_send.php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+include('../db.php'); // This file must initialize your $pdo connection
 
-include('db.php'); // This file must initialize your $pdo connection
-
-// Ensure account ID and user ID are provided via GET
-if (!isset($_GET['ac_id']) || !isset($_GET['user_id'])) {
-  echo "Account ID and User ID required.";
+// Ensure account ID is provided via GET
+if (!isset($_GET['ac_id'])) {
+  echo "Account ID required.";
   exit;
 }
 
 $id = intval($_GET['ac_id']);
-$user_id = intval($_GET['user_id']);
 
-// Fetch AWS credentials for the provided account ID
-$stmt = $pdo->prepare("SELECT aws_key, aws_secret FROM accounts WHERE id = ?");
+// Fetch AWS credentials for the provided account ID from child_accounts table
+$stmt = $pdo->prepare("SELECT aws_access_key, aws_secret_key FROM child_accounts WHERE account_id = ?");
 $stmt->execute([$id]);
 $account = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -21,40 +22,16 @@ if (!$account) {
   echo "Account not found.";
   exit;
 }
-$accountId = intval($_GET['ac_id']);
+
+$accountId = $id; // using provided account id
+
 // Set the timezone to Asia/Karachi
 date_default_timezone_set('Asia/Karachi');
-
-// Get the current timestamp
 $currentTimestamp = date('Y-m-d H:i:s');
 
-// Echo the current timestamp
-// echo "Current Timestamp: " . $currentTimestamp;
-
-if (isset($_POST['action']) && $_POST['action'] === 'update_account') {
-  if ($accountId > 0) {
-      // Get the current Pakistan time
-      // $now = (new DateTime('now', new DateTimeZone('Asia/Karachi')))->format('Y-m-d H:i:s');
-      
-      // Update the account with Pakistan time
-      $stmt = $pdo->prepare("UPDATE accounts SET ac_score = ac_score + 1, last_used = :last_used WHERE id = :id");
-      try {
-          $stmt->execute([':id' => $accountId, ':last_used' => $currentTimestamp]);
-          echo json_encode(['success' => true, 'message' => 'Account updated successfully.', 'time' => $currentTimestamp]);
-      } catch (PDOException $e) {
-          echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $e->getMessage()]);
-      }
-  } else {
-      echo json_encode(['success' => false, 'message' => 'Invalid account ID.']);
-  }
-  exit;
-}
-
-
-
-
-$aws_key    = htmlspecialchars($account['aws_key']);
-$aws_secret = htmlspecialchars($account['aws_secret']);
+// Retrieve AWS keys from child_accounts
+$aws_key    = htmlspecialchars($account['aws_access_key']);
+$aws_secret = htmlspecialchars($account['aws_secret_key']);
 
 // STREAMING MODE: If stream=1 is present, run the SSE loop.
 if (isset($_GET['stream'])) {
@@ -121,7 +98,8 @@ if (isset($_GET['stream'])) {
     sendSSE("STATUS", "Moving to region: " . $region);
     sendSSE("COUNTERS", "Total OTP sent: $totalSuccess; In region: $region; Regions processed: $usedRegions; Remaining: " . ($totalRegions - $usedRegions));
 
-    $numbersResult = fetch_numbers($region, $user_id, $pdo, $set_id);
+    // Fetch phone numbers based solely on the set_id
+    $numbersResult = fetch_numbers($region, $pdo, $set_id);
     if (isset($numbersResult['error'])) {
       sendSSE("STATUS", "Error fetching numbers for region " . $region . ": " . $numbersResult['error']);
       sleep(5);
@@ -154,7 +132,7 @@ if (isset($_GET['stream'])) {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|OTP Failed: " . $sns['error']);
         continue;
       }
-      $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns);
+      $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns);
       if ($result['status'] === 'success') {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|OTP Sent");
         $totalSuccess++;
@@ -200,124 +178,31 @@ if (isset($_GET['stream'])) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <title><?php echo $id;  ?> | Bulk Regional OTP Sending</title>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f7f7f7;
-    }
-
-    .container {
-      max-width: 800px;
-      margin: auto;
-      background: #fff;
-      padding: 20px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      border-radius: 5px;
-    }
-
-    h1,
-    h2 {
-      text-align: center;
-      color: #333;
-    }
-
-    label {
-      font-weight: bold;
-      margin-top: 10px;
-      display: block;
-    }
-
-    input,
-    textarea,
-    select,
-    button {
-      width: 100%;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      box-sizing: border-box;
-    }
-
-    button {
-      background: #007bff;
-      color: #fff;
-      border: none;
-      cursor: pointer;
-      font-size: 16px;
-    }
-
-    button:disabled {
-      background: #6c757d;
-      cursor: not-allowed;
-    }
-
-    .message {
-      padding: 10px;
-      border-radius: 5px;
-      margin: 10px 0;
-      display: none;
-    }
-
-    .success {
-      background: #d4edda;
-      color: #155724;
-    }
-
-    .error {
-      background: #f8d7da;
-      color: #721c24;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-    }
-
-    table,
-    th,
-    td {
-      border: 1px solid #ccc;
-    }
-
-    th,
-    td {
-      padding: 5px;
-      text-align: center;
-    }
-
-    th {
-      background: #f4f4f4;
-    }
-
-    #counters {
-      background: #eee;
-      color: #333;
-      padding: 5px 10px;
-      margin: 10px 0;
-      font-weight: bold;
-      text-align: center;
-      font-size: 14px;
-      border: 1px solid #ccc;
-      border-radius: 3px;
-      display: inline-block;
-      width: auto;
-    }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f7f7f7; }
+    .container { max-width: 800px; margin: auto; background: #fff; padding: 20px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); border-radius: 5px; }
+    h1, h2 { text-align: center; color: #333; }
+    label { font-weight: bold; margin-top: 10px; display: block; }
+    input, textarea, select, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
+    button { background: #007bff; color: #fff; border: none; cursor: pointer; font-size: 16px; }
+    button:disabled { background: #6c757d; cursor: not-allowed; }
+    .message { padding: 10px; border-radius: 5px; margin: 10px 0; display: none; }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    table, th, td { border: 1px solid #ccc; }
+    th, td { padding: 5px; text-align: center; }
+    th { background: #f4f4f4; }
+    #counters { background: #eee; color: #333; padding: 5px 10px; margin: 10px 0; font-weight: bold; text-align: center; font-size: 14px; border: 1px solid #ccc; border-radius: 3px; display: inline-block; width: auto; }
   </style>
 </head>
-
 <body>
   <div class="container">
     <h1>Bulk Regional OTP Sending</h1>
-    <button id="updateButton" class="btnb btn-secondary">Mark as Completed</button>
-    <div id="result"></div>
     <?php
     // Fetch available sets from bulk_sets.
     $stmtSets = $pdo->query("SELECT id, set_name FROM bulk_sets ORDER BY set_name ASC");
@@ -374,7 +259,6 @@ if (isset($_GET['stream'])) {
 
   <script>
     $(document).ready(function() {
-      var userId = <?php echo $user_id; ?>;
       var acId = <?php echo $id; ?>;
 
       // When a set is selected, fetch allowed numbers for that set via AJAX.
@@ -391,8 +275,7 @@ if (isset($_GET['stream'])) {
           data: {
             action: 'fetch_numbers',
             region: 'dummy',
-            set_id: set_id,
-            user_id: userId
+            set_id: set_id
           },
           success: function(response) {
             if (response.status === 'success') {
@@ -425,7 +308,7 @@ if (isset($_GET['stream'])) {
         $('#counters').html('');
 
         // Start SSE connection with the selected set_id.
-        var evtSource = new EventSource("bulk_regional_send.php?ac_id=" + acId + "&user_id=" + userId + "&set_id=" + set_id + "&stream=1");
+        var evtSource = new EventSource("bulk_regional_send.php?ac_id=" + acId + "&set_id=" + set_id + "&stream=1");
         evtSource.onmessage = function(e) {
           var data = e.data;
           var parts = data.split("|");
@@ -456,30 +339,5 @@ if (isset($_GET['stream'])) {
       });
     });
   </script>
-  <script>
-    $(document).ready(function() {
-      $("#updateButton").click(function() {
-        $.ajax({
-          url: window.location.href,
-          type: 'POST',
-          dataType: 'json',
-          data: {
-            action: 'update_account'
-          },
-          success: function(response) {
-            if (response.success) {
-              $("#result").html("<p style='color: green;'>" + response.message + "</p>");
-            } else {
-              $("#result").html("<p style='color: red;'>" + response.message + "</p>");
-            }
-          },
-          error: function() {
-            $("#result").html("<p style='color: red;'>An error occurred while updating the account.</p>");
-          }
-        });
-      });
-    });
-  </script>
 </body>
-
 </html>

@@ -13,7 +13,7 @@ $id = intval($_GET['ac_id']);
 $user_id = intval($_GET['user_id']);
 
 // Fetch the AWS key and secret key for the provided account ID
-$stmt = $pdo->prepare("SELECT aws_key, aws_secret FROM accounts WHERE id = ?");
+$stmt = $pdo->prepare("SELECT aws_key, aws_secret,account_id FROM accounts WHERE id = ?");
 $stmt->execute([$id]);
 $account = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -47,6 +47,7 @@ $accountId = intval($_GET['ac_id']);
 // ===================================
 $aws_key    = htmlspecialchars($account['aws_key']);
 $aws_secret = htmlspecialchars($account['aws_secret']);
+$account_id = htmlspecialchars($account['account_id']);
 
 // Fetch bulk sets for the dropdown
 $stmtSets = $pdo->query("SELECT id, set_name FROM bulk_sets ORDER BY set_name ASC");
@@ -179,7 +180,8 @@ $sets = $stmtSets->fetchAll(PDO::FETCH_ASSOC);
 <body>
   <div class="container">
     <h1>Bulk OTP Sending</h1>
-    <button id="updateButton">Mark As Completed</button>
+    <a href="./awsch/account_details.php?ac_id=<?php echo $account_id; ?>&user_id=<?php echo $user_id;?>" target="_blank"><button>Mark As Completed</button></a>
+    <!-- <button id="updateButton">Mark As Completed</button> -->
     <div id="result"></div>
     <form id="bulk-otp-form">
       <!-- Hidden input to hold the session_id -->
