@@ -100,6 +100,12 @@ $staticRegions = [
     </div>
   </div>
   
+  <!-- Bulk Enable Buttons -->
+  <div class="mb-4">
+    <button id="enable-set1" class="btn btn-success">Enable Set1</button>
+    <button id="enable-set2" class="btn btn-success">Enable Set2</button>
+  </div>
+  
   <div id="response-message" class="mt-3"></div>
   
   <!-- Note for Half-Accounts -->
@@ -182,9 +188,8 @@ $staticRegions = [
     fetchRegionTotals();
   });
   
-  // Function to perform the region option API call via AJAX
-  function callRegionOpt(actionType) {
-    var regionCode = $('#region-select').val();
+  // Function to perform the region option API call via AJAX for a single region
+  function callRegionOptForRegion(actionType, region, callback) {
     var awsKey = "<?php echo $aws_key; ?>";
     var awsSecret = "<?php echo $aws_secret; ?>";
     
@@ -194,31 +199,106 @@ $staticRegions = [
       dataType: 'json',
       data: {
         action: actionType,  // "enable" or "disable"
+        region: region.code,
+        awsKey: awsKey,
+        awsSecret: awsSecret
+      },
+      success: function(response) {
+        $('#response-message').append(
+          '<div class="alert alert-success">' + response.message + ' for region ' + region.name + '</div>'
+        );
+        if(typeof callback === 'function') {
+          callback();
+        }
+      },
+      error: function(xhr, status, error) {
+        $('#response-message').append(
+          '<div class="alert alert-danger">AJAX error: ' + error + ' for region ' + region.name + '</div>'
+        );
+        if(typeof callback === 'function') {
+          callback();
+        }
+      }
+    });
+  }
+  
+  // Recursive function to enable a list of regions with a 2-second gap between calls
+  function enableRegionSet(regionSet, index) {
+    if(index < regionSet.length) {
+      callRegionOptForRegion('enable', regionSet[index], function(){
+        setTimeout(function(){
+          enableRegionSet(regionSet, index + 1);
+        }, 2000);
+      });
+    } else {
+      fetchRegionTotals(); // Refresh region totals after finishing the set
+    }
+  }
+  
+  // Bind click events to the individual Enable/Disable buttons
+  $('#enable-btn').click(function(){
+    var regionCode = $('#region-select').val();
+    var awsKey = "<?php echo $aws_key; ?>";
+    var awsSecret = "<?php echo $aws_secret; ?>";
+    
+    $.ajax({
+      url: 'region_opt.php',
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        action: 'enable',
         region: regionCode,
         awsKey: awsKey,
         awsSecret: awsSecret
       },
       success: function(response) {
-        if(response.status === 'success'){
-          $('#response-message').html('<div class="alert alert-success">' + response.message + '</div>');
-          fetchRegionTotals();  // Refresh the totals and dropdown
-        } else {
-          $('#response-message').html('<div class="alert alert-danger">' + response.message + '</div>');
-        }
+        $('#response-message').html('<div class="alert alert-success">' + response.message + '</div>');
+        fetchRegionTotals();
       },
       error: function(xhr, status, error) {
         $('#response-message').html('<div class="alert alert-danger">AJAX error: ' + error + '</div>');
       }
     });
-  }
-  
-  // Bind click events to the Enable and Disable buttons
-  $('#enable-btn').click(function(){
-    callRegionOpt('enable');
   });
   
   $('#disable-btn').click(function(){
-    callRegionOpt('disable');
+    var regionCode = $('#region-select').val();
+    var awsKey = "<?php echo $aws_key; ?>";
+    var awsSecret = "<?php echo $aws_secret; ?>";
+    
+    $.ajax({
+      url: 'region_opt.php',
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        action: 'disable',
+        region: regionCode,
+        awsKey: awsKey,
+        awsSecret: awsSecret
+      },
+      success: function(response) {
+        $('#response-message').html('<div class="alert alert-success">' + response.message + '</div>');
+        fetchRegionTotals();
+      },
+      error: function(xhr, status, error) {
+        $('#response-message').html('<div class="alert alert-danger">AJAX error: ' + error + '</div>');
+      }
+    });
+  });
+  
+  // Bind click events for the bulk enable buttons
+  $('#enable-set1').click(function(){
+    // First 7 regions (indexes 0 to 6)
+    var set1 = staticRegions.slice(0, 7);
+    $('#response-message').html(''); // Clear previous messages
+    enableRegionSet(set1, 0);
+  });
+  
+  $('#enable-set2').click(function(){
+    // Remaining 5 regions (indexes 7 to end)
+    var set2 = staticRegions.slice(7);
+    $('#response-message').html(''); // Clear previous messages
+    enableRegionSet(set2, 0);
   });
 </script>
 </body>
