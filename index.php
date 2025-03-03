@@ -79,17 +79,16 @@ if (isset($_POST['submit'])) {
     <!-- <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script> -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
-
 </head>
 
 <body>
     <div class="container mt-3">
         <div class="row">
+            <!-- Cards for statistics -->
             <div class="col-6 col-md-2 mb-3">
                 <div class="card text-center bg-info text-white">
                     <div class="card-body py-2">
-                        <?php
-                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(added_date)=CURDATE()"); ?>
+                        <?php $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(added_date)=CURDATE()"); ?>
                         <h6 class="card-title">Today New</h6>
                         <p class="card-text"><strong><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></strong></p>
                     </div>
@@ -98,8 +97,7 @@ if (isset($_POST['submit'])) {
             <div class="col-6 col-md-2 mb-3">
                 <div class="card text-center bg-warning text-dark">
                     <div class="card-body py-2">
-                        <?php
-                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(suspended_date)=CURDATE()"); ?>
+                        <?php $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(suspended_date)=CURDATE()"); ?>
                         <h6 class="card-title">Susp. Today</h6>
                         <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
                     </div>
@@ -108,8 +106,7 @@ if (isset($_POST['submit'])) {
             <div class="col-6 col-md-2 mb-3">
                 <div class="card text-center bg-success text-white">
                     <div class="card-body py-2">
-                        <?php
-                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE status='active'"); ?>
+                        <?php $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE status='active'"); ?>
                         <h6 class="card-title">Total Active</h6>
                         <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
                     </div>
@@ -118,8 +115,7 @@ if (isset($_POST['submit'])) {
             <div class="col-6 col-md-2 mb-3">
                 <div class="card text-center bg-secondary text-white">
                     <div class="card-body py-2">
-                        <?php
-                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(last_used)=CURDATE()"); ?>
+                        <?php $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(last_used)=CURDATE()"); ?>
                         <h6 class="card-title">Done Today</h6>
                         <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
                     </div>
@@ -128,8 +124,7 @@ if (isset($_POST['submit'])) {
             <div class="col-6 col-md-2 mb-3">
                 <div class="card text-center bg-primary text-white">
                     <div class="card-body py-2">
-                        <?php
-                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE ac_state='orphan'"); ?>
+                        <?php $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE ac_state='orphan'"); ?>
                         <h6 class="card-title">Claimable</h6>
                         <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
                     </div>
@@ -138,9 +133,7 @@ if (isset($_POST['submit'])) {
             <div class="col-6 col-md-2 mb-3">
                 <div class="card text-center bg-danger text-white">
                     <div class="card-body py-2">
-                        <?php
-                        $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE status='suspended'");
-                        ?>
+                        <?php $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE status='suspended'"); ?>
                         <h6 class="card-title">Total Susp.</h6>
                         <p class="card-text"><?php echo $stmt->fetch(PDO::FETCH_ASSOC)['count']; ?></p>
                     </div>
@@ -168,19 +161,21 @@ if (isset($_POST['submit'])) {
             </thead>
             <tbody>
                 <?php
-                // Fetch all accounts from the database and display them
-                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'orphan' ORDER by 1 DESC");
+                // Fetch orphan accounts
+                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'orphan' ORDER by id DESC");
                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     echo "<tr>";
                     echo "<td>" . $row['id'] . "</td>";
                     echo "<td>" . htmlspecialchars($row['account_id']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['aws_key']) . "</td>";
+                    
                     // Account Status: Active or Suspended
                     if ($row['status'] == 'active') {
                         echo "<td><span class='badge badge-success'>Active</span></td>";
                     } else {
                         echo "<td><span class='badge badge-danger'>Suspended</span></td>";
                     }
+                    
                     // Account State: Orphan, Claimed, Rejected
                     if ($row['ac_state'] == 'orphan') {
                         echo "<td><span class='badge badge-warning'>Orphan</span></td>";
@@ -189,17 +184,16 @@ if (isset($_POST['submit'])) {
                     } else {
                         echo "<td><span class='badge badge-danger'>Rejected</span></td>";
                     }
-                    // Account Score (how many times an OTP was sent)
+                    
                     echo "<td>" . htmlspecialchars($row['ac_score']) . "</td>";
-
+                    
                     // Account Age calculation
                     if ($row['status'] == 'active') {
                         $td_Added_date = new DateTime($row['added_date']);
-                        $td_current_date = new DateTime(); // current date and time
+                        $td_current_date = new DateTime();
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     } else {
-                        // Calculate age based on suspended date if suspended
                         $td_Added_date = new DateTime($row['added_date']);
                         $td_current_date = new DateTime($row['suspended_date']);
                         $diff = $td_Added_date->diff($td_current_date);
@@ -207,16 +201,15 @@ if (isset($_POST['submit'])) {
                     }
                     
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
-                    // Format Added Date with timezone adjustment
                     echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('Asia/Karachi')))->format('d M g:i a') . "</td>";
-
+                    
                     echo "<td>
                             <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Chk-Status</button>
                             <button class='btn btn-success btn-sm claim-btn' data-id='" . $row['id'] . "'>Claim</button>
-                            <a href='check_quality.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Chk-Qlty</a>
-                            <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>En-Reg</a>  
-                            <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
-                            <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
+                            <a class='btn btn-secondary btn-sm' href='check_quality.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Chk-Qlty</a>
+                            <a class='btn btn-primary btn-sm' href='aws_account.php?id=" . $row['id'] . "' target='_blank'>En-Reg</a>
+                            <a class='btn btn-success btn-sm' href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>BRS</a>
+                            <a class='btn btn-primary btn-sm' href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank'>Clear</a>
                           </td>";
                     echo "</tr>";
                 }
@@ -244,20 +237,20 @@ if (isset($_POST['submit'])) {
             </thead>
             <tbody>
                 <?php
-                // Fetch all accounts from the database and display them
-                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'claimed' AND claimed_by = '$session_id' AND status='active' ORDER by 1 DESC");
+                // Fetch already claimed accounts by the current user
+                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'claimed' AND claimed_by = '$session_id'  ORDER by id DESC");
                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     echo "<tr>";
                     echo "<td>" . $row['id'] . "</td>";
                     echo "<td>" . htmlspecialchars($row['account_id']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['aws_key']) . "</td>";
-                    // Account Status: Active or Suspended
+                    
                     if ($row['status'] == 'active') {
                         echo "<td><span class='badge badge-success'>Active</span></td>";
                     } else {
                         echo "<td><span class='badge badge-danger'>Suspended</span></td>";
                     }
-                    // Account State: Orphan, Claimed, Rejected
+                    
                     if ($row['ac_state'] == 'orphan') {
                         echo "<td><span class='badge badge-warning'>Orphan</span></td>";
                     } else if ($row['ac_state'] == 'claimed') {
@@ -265,10 +258,9 @@ if (isset($_POST['submit'])) {
                     } else {
                         echo "<td><span class='badge badge-danger'>Rejected</span></td>";
                     }
-                    // Account Score (how many times an OTP was sent)
+                    
                     echo "<td>" . htmlspecialchars($row['ac_score']) . "</td>";
-
-                    // Account Age calculation
+                    
                     if ($row['status'] == 'active') {
                         $td_Added_date = new DateTime($row['added_date']);
                         $td_current_date = new DateTime();
@@ -280,14 +272,11 @@ if (isset($_POST['submit'])) {
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
+                    
                     if (empty($row['last_used'])) {
                         echo "<td><span class='badge badge-warning'>No date provided</span></td>";
                     } else {
-                        $initial = DateTime::createFromFormat(
-                            'Y-m-d H:i:s',
-                            $row['last_used'],
-                            new DateTimeZone('Asia/Karachi')
-                        );
+                        $initial = DateTime::createFromFormat('Y-m-d H:i:s', $row['last_used'], new DateTimeZone('Asia/Karachi'));
                         if (!$initial) {
                             echo "<td><span class='badge badge-danger'>Invalid date format</span></td>";
                         } else {
@@ -304,22 +293,26 @@ if (isset($_POST['submit'])) {
                         }
                     }
                     
-                    echo "<td>" . htmlspecialchars($row['cr_offset']) ."</td>";
+                    echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M g:i a') . "</td>";
+                    
                     echo "<td>
                             <div class='dropdown'>
                                 <button class='btn btn-info btn-sm dropdown-toggle' type='button' id='actionDropdown{$row['id']}' data-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>
                                 Actions
                                 </button>
                                 <div class='dropdown-menu' aria-labelledby='actionDropdown{$row['id']}'>
-                                <a class='dropdown-item' href='manage_ac.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Manage Account</a>
-                                <a class='dropdown-item check-status-btn' href='#' data-id='" . $row['id'] . "'>Check Status</a>
-                                <a class='dropdown-item' href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Bulk Send</a>
-                                <a class='dropdown-item' href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Bulk Regional Send</a>
-                                <a class='dropdown-item' href='brs.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>BRS</a>
-                                <a class='dropdown-item' href='aws_account.php?id=" . $row['id'] . "' target='_blank'>EnableReg</a>
-                                <a class='dropdown-item' href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank'>NodeSender</a>
-                                <a class='dropdown-item' href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank'>Clear</a>
+                                    <a class='dropdown-item' href='manage_ac.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Manage Account</a>
+                                    <a class='dropdown-item check-status-btn' href='#' data-id='" . $row['id'] . "'>Check Status</a>
+                                    <a class='dropdown-item' href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Bulk Send</a>
+                                    <a class='dropdown-item' href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Bulk Regional Send</a>
+                                    <a class='dropdown-item' href='brs.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>BRS</a>
+                                    <a class='dropdown-item' href='aws_account.php?id=" . $row['id'] . "' target='_blank'>EnableReg</a>
+                                    <a class='dropdown-item' href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank'>NodeSender</a>
+                                    <a class='dropdown-item' href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank'>Clear</a>
+                                    <!-- New options to update claim type -->
+                                    <a class='dropdown-item mark-full-btn' href='#' data-id='" . $row['id'] . "'>Mark-Full</a>
+                                    <a class='dropdown-item mark-half-btn' href='#' data-id='" . $row['id'] . "'>Mark-Half</a>
                                 </div>
                             </div>
                           </td>";
@@ -342,7 +335,7 @@ if (isset($_POST['submit'])) {
 
         // Check Status button
         $(document).on('click', '.check-status-btn', function(e) {
-            e.preventDefault(); // Prevent default behavior
+            e.preventDefault();
             var id = $(this).data('id');
             $.ajax({
                 url: './provider/scripts/check_status.php',
@@ -357,12 +350,12 @@ if (isset($_POST['submit'])) {
             });
         });
 
-        // Claim button with prompt for claim type (full or half)
+        // Claim button (for orphan accounts) with prompt for claim type
         $(document).on('click', '.claim-btn', function() {
             var accountId = $(this).data("id");
             var claimType = prompt("Enter claim type (full or half)", "full");
             if (claimType === null) {
-                return; // User cancelled the prompt
+                return; // User cancelled
             }
             claimType = claimType.trim().toLowerCase();
             if (claimType !== "full" && claimType !== "half") {
@@ -379,6 +372,42 @@ if (isset($_POST['submit'])) {
                 },
                 error: function() {
                     alert("An error occurred while claiming the account.");
+                }
+            });
+        });
+
+        // Mark-Full option for already claimed accounts
+        $(document).on('click', '.mark-full-btn', function(e) {
+            e.preventDefault();
+            var accountId = $(this).data("id");
+            $.ajax({
+                url: "claim_account.php",
+                type: "POST",
+                data: { id: accountId, claim_type: 'full' },
+                success: function(response) {
+                    alert(response);
+                    location.reload();
+                },
+                error: function() {
+                    alert("An error occurred while marking the account as full.");
+                }
+            });
+        });
+
+        // Mark-Half option for already claimed accounts
+        $(document).on('click', '.mark-half-btn', function(e) {
+            e.preventDefault();
+            var accountId = $(this).data("id");
+            $.ajax({
+                url: "claim_account.php",
+                type: "POST",
+                data: { id: accountId, claim_type: 'half' },
+                success: function(response) {
+                    alert(response);
+                    location.reload();
+                },
+                error: function() {
+                    alert("An error occurred while marking the account as half.");
                 }
             });
         });

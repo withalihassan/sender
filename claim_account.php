@@ -14,20 +14,32 @@ if ($claim_type !== 'full' && $claim_type !== 'half') {
     die('Invalid claim type.');
 }
 
-// Check if the account has passed quality check
+// Fetch the current account state
 $stmt = $pdo->prepare("SELECT ac_state FROM accounts WHERE id = ?");
 $stmt->execute([$id]);
 $account = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$account || $account['ac_state'] !== 'orphan') {
-    die('Account cannot be claimed.');
+if (!$account) {
+    die('Account does not exist.');
 }
 
-// Update the account: set state to claimed, record the claimer, and store the claim type (worth_type)
-$stmt = $pdo->prepare("UPDATE accounts SET ac_state = 'claimed', claimed_by = ?, worth_type = ? WHERE id = ?");
-if ($stmt->execute([$session_id, $claim_type, $id])) {
-    echo "Account claimed successfully as " . htmlspecialchars($claim_type) . ".";
+if ($account['ac_state'] === 'orphan') {
+    // Claim the account: update state to claimed, set claimed_by and worth_type
+    $stmt = $pdo->prepare("UPDATE accounts SET ac_state = 'claimed', claimed_by = ?, worth_type = ? WHERE id = ?");
+    if ($stmt->execute([$session_id, $claim_type, $id])) {
+        echo "Account claimed successfully as " . htmlspecialchars($claim_type) . ".";
+    } else {
+        echo "Failed to claim account.";
+    }
+} else if ($account['ac_state'] === 'claimed') {
+    // Account already claimed, update the worth_type only
+    $stmt = $pdo->prepare("UPDATE accounts SET worth_type = ? WHERE id = ?");
+    if ($stmt->execute([$claim_type, $id])) {
+        echo "Account claim type updated to " . htmlspecialchars($claim_type) . ".";
+    } else {
+        echo "Failed to update claim type.";
+    }
 } else {
-    echo "Failed to claim account.";
+    die('Account cannot be claimed.');
 }
 ?>
