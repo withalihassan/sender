@@ -1,9 +1,9 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+// ini_set('display_startup_errors', 1);
+// error_reporting(E_ALL);
 
-include  "./session.php";
+include "./session.php";
 // index.php
 include "./header.php";
 // Include your database connection file
@@ -169,16 +169,12 @@ if (isset($_POST['submit'])) {
             <tbody>
                 <?php
                 // Fetch all accounts from the database and display them
-                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'orphan' ORDER  by 1 DESC");
+                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'orphan' ORDER by 1 DESC");
                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     echo "<tr>";
                     echo "<td>" . $row['id'] . "</td>";
                     echo "<td>" . htmlspecialchars($row['account_id']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['aws_key']) . "</td>";
-                    // echo "<td>" . htmlspecialchars() . "</td>";
-                    // echo "<td>" . htmlspecialchars($row['ac_state']) . "</td>";///
-                ?>
-                    <?php
                     // Account Status: Active or Suspended
                     if ($row['status'] == 'active') {
                         echo "<td><span class='badge badge-success'>Active</span></td>";
@@ -205,20 +201,18 @@ if (isset($_POST['submit'])) {
                     } else {
                         // Calculate age based on suspended date if suspended
                         $td_Added_date = new DateTime($row['added_date']);
-                        $td_current_date = new DateTime($row['suspended_date']); // current date and time
+                        $td_current_date = new DateTime($row['suspended_date']);
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
-                    ?>
-                <?php
-                    // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
+                    
                     echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
                     // Format Added Date with timezone adjustment
                     echo "<td>" . (new DateTime($row['added_date'], new DateTimeZone('Asia/Karachi')))->format('d M g:i a') . "</td>";
 
                     echo "<td>
                             <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Chk-Status</button>
-                            <button class='btn btn-success btn-sm claim-btn' data-id='" . $row['id'] . "' >Claim</button>
+                            <button class='btn btn-success btn-sm claim-btn' data-id='" . $row['id'] . "'>Claim</button>
                             <a href='check_quality.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Chk-Qlty</a>
                             <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>En-Reg</a>  
                             <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
@@ -251,16 +245,12 @@ if (isset($_POST['submit'])) {
             <tbody>
                 <?php
                 // Fetch all accounts from the database and display them
-                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'claimed' AND claimed_by = '$session_id' AND status='active' ORDER  by 1 DESC");
+                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'claimed' AND claimed_by = '$session_id' AND status='active' ORDER by 1 DESC");
                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     echo "<tr>";
                     echo "<td>" . $row['id'] . "</td>";
                     echo "<td>" . htmlspecialchars($row['account_id']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['aws_key']) . "</td>";
-                    // echo "<td>" . htmlspecialchars() . "</td>";
-                    // echo "<td>" . htmlspecialchars($row['ac_state']) . "</td>";///
-                ?>
-                    <?php
                     // Account Status: Active or Suspended
                     if ($row['status'] == 'active') {
                         echo "<td><span class='badge badge-success'>Active</span></td>";
@@ -281,60 +271,41 @@ if (isset($_POST['submit'])) {
                     // Account Age calculation
                     if ($row['status'] == 'active') {
                         $td_Added_date = new DateTime($row['added_date']);
-                        $td_current_date = new DateTime(); // current date and time
+                        $td_current_date = new DateTime();
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     } else {
-                        // Calculate age based on suspended date if suspended
                         $td_Added_date = new DateTime($row['added_date']);
-                        $td_current_date = new DateTime($row['suspended_date']); // current date and time
+                        $td_current_date = new DateTime($row['suspended_date']);
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
-                    ?><?php
-                        if (empty($row['last_used'])) {
-                            echo "<td><span class='badge badge-warning'>No date provided</span></td>";
+                    if (empty($row['last_used'])) {
+                        echo "<td><span class='badge badge-warning'>No date provided</span></td>";
+                    } else {
+                        $initial = DateTime::createFromFormat(
+                            'Y-m-d H:i:s',
+                            $row['last_used'],
+                            new DateTimeZone('Asia/Karachi')
+                        );
+                        if (!$initial) {
+                            echo "<td><span class='badge badge-danger'>Invalid date format</span></td>";
                         } else {
-                            // Create DateTime object with validation
-                            $initial = DateTime::createFromFormat(
-                                'Y-m-d H:i:s',
-                                $row['last_used'],
-                                new DateTimeZone('Asia/Karachi')
-                            );
-
-                            if (!$initial) {
-                                echo "<td><span class='badge badge-danger'>Invalid date format</span></td>";
+                            $expiry = clone $initial;
+                            $expiry->modify('+1 day');
+                            $now = new DateTime();
+                            $diff = $now->diff($expiry);
+                            if ($diff->invert) {
+                                echo "<td><span class='badge badge-success'>Ready to go</span></td>";
                             } else {
-                                // Clone the validated object and add one day
-                                $expiry = clone $initial;
-                                $expiry->modify('+1 day');
-
-                                // Calculate time difference
-                                $now = new DateTime();
-                                $diff = $now->diff($expiry);
-
-                                if ($diff->invert) {
-                                    echo "<td><span class='badge badge-success'>Ready to go</span></td>";
-                                } else {
-                                    $hours = ($diff->days * 24) + $diff->h;
-                                    echo "<td><span class='badge badge-secondary'>{$hours}H {$diff->i}m left</span></td>";
-                                }
+                                $hours = ($diff->days * 24) + $diff->h;
+                                echo "<td><span class='badge badge-secondary'>{$hours}H {$diff->i}m left</span></td>";
                             }
                         }
-                        ?>
-
-                <?php
+                    }
+                    
                     echo "<td>" . htmlspecialchars($row['cr_offset']) ."</td>";
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M g:i a') . "</td>";
-                    // echo "<td>
-                    //       <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
-                    //       <a href='bulk_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-secondary btn-sm'>Bulk Send</a>
-                    //       <a href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>Bulk Regional Send</a>
-                    //       <a href='brs.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank' class='btn btn-success btn-sm'>BRS</a>
-                    //       <a href='aws_account.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>EnableReg</a>
-                    //       <a href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>NodeSender</a>
-                    //       <a href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank' class='btn btn-primary btn-sm'>Clear</a>
-                    //     </td>";
                     echo "<td>
                             <div class='dropdown'>
                                 <button class='btn btn-info btn-sm dropdown-toggle' type='button' id='actionDropdown{$row['id']}' data-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>
@@ -351,9 +322,8 @@ if (isset($_POST['submit'])) {
                                 <a class='dropdown-item' href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank'>Clear</a>
                                 </div>
                             </div>
-                            </td>";
+                          </td>";
                     echo "<td>" . (new DateTime($row['last_used']))->format('d M g:i a') . "</td>";
-
                     echo "</tr>";
                 }
                 ?>
@@ -368,19 +338,18 @@ if (isset($_POST['submit'])) {
             $('#myaccountsTable').DataTable();
         });
 
-        // Delegated event binding for dynamically generated elements - Check Status
+        // Delegated event binding for dynamically generated elements
+
+        // Check Status button
         $(document).on('click', '.check-status-btn', function(e) {
             e.preventDefault(); // Prevent default behavior
             var id = $(this).data('id');
             $.ajax({
                 url: './provider/scripts/check_status.php',
                 type: 'POST',
-                data: {
-                    id: id
-                },
+                data: { id: id },
                 success: function(response) {
                     alert(response);
-                    // Removed location.reload() to avoid page refresh
                 },
                 error: function() {
                     alert("An error occurred while checking the account status.");
@@ -388,48 +357,49 @@ if (isset($_POST['submit'])) {
             });
         });
 
-        // Direct binding for Claim button (remains unchanged)
-        $(document).ready(function() {
-            $(".claim-btn").click(function() {
-                var accountId = $(this).data("id");
+        // Claim button with prompt for claim type (full or half)
+        $(document).on('click', '.claim-btn', function() {
+            var accountId = $(this).data("id");
+            var claimType = prompt("Enter claim type (full or half)", "full");
+            if (claimType === null) {
+                return; // User cancelled the prompt
+            }
+            claimType = claimType.trim().toLowerCase();
+            if (claimType !== "full" && claimType !== "half") {
+                alert("Invalid claim type. Please enter 'full' or 'half'.");
+                return;
+            }
+            $.ajax({
+                url: "claim_account.php",
+                type: "POST",
+                data: { id: accountId, claim_type: claimType },
+                success: function(response) {
+                    alert(response);
+                    location.reload();
+                },
+                error: function() {
+                    alert("An error occurred while claiming the account.");
+                }
+            });
+        });
+
+        // Delete account event handler
+        $(document).on('click', '.delete-btn', function() {
+            if (confirm("Are you sure you want to delete this account?")) {
+                var id = $(this).data('id');
                 $.ajax({
-                    url: "claim_account.php",
-                    type: "POST",
-                    data: {
-                        id: accountId
-                    },
+                    url: './scripts/delete_account.php',
+                    type: 'POST',
+                    data: { id: id },
                     success: function(response) {
                         alert(response);
                         location.reload();
                     },
                     error: function() {
-                        alert("An error occurred while claiming the account.");
+                        alert("An error occurred while deleting the account.");
                     }
                 });
-            });
-        });
-
-        // Delete account event handler remains unchanged
-        $(document).ready(function() {
-            $('.delete-btn').click(function() {
-                if (confirm("Are you sure you want to delete this account?")) {
-                    var id = $(this).data('id');
-                    $.ajax({
-                        url: './scripts/delete_account.php',
-                        type: 'POST',
-                        data: {
-                            id: id
-                        },
-                        success: function(response) {
-                            alert(response);
-                            location.reload();
-                        },
-                        error: function() {
-                            alert("An error occurred while deleting the account.");
-                        }
-                    });
-                }
-            });
+            }
         });
     </script>
 </body>

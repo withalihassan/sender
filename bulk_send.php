@@ -180,7 +180,7 @@ $sets = $stmtSets->fetchAll(PDO::FETCH_ASSOC);
 <body>
   <div class="container">
     <h1>Bulk OTP Sending</h1>
-    <a href="./awsch/account_details.php?ac_id=<?php echo $account_id; ?>&user_id=<?php echo $user_id;?>" target="_blank"><button>Mark As Completed</button></a>
+    <a href="./awsch/acccount_details.php?ac_id=<?php echo $account_id; ?>&user_id=<?php echo $user_id;?>" target="_blank"><button>Mark As Completed</button></a>
     <!-- <button id="updateButton">Mark As Completed</button> -->
     <div id="result"></div>
     <form id="bulk-otp-form">
