@@ -82,7 +82,7 @@ $session_id = $_SESSION['user_id'];
                     <th>State</th>
                     <th>Account Score</th>
                     <th>Account Age</th>
-                    <th>Credit Offset</th>
+                    <!-- <th>Credit Offset</th> -->
                     <th>Added Date</th>
                     <th>Actions</th>
                 </tr>
@@ -135,7 +135,7 @@ $session_id = $_SESSION['user_id'];
                     ?>
                 <?php
                     // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
-                    echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
+                    // echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
                     echo "<td>
                   <button class='btn btn-danger btn-sm delete-btn' data-id='" . $row['id'] . "'>Delete</button>
