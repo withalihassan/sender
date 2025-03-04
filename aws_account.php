@@ -113,6 +113,15 @@ $staticRegions = [
   // Pass staticRegions from PHP to JavaScript
   var staticRegions = <?php echo json_encode($staticRegions); ?>;
   
+  // Define region sets for bulk enabling based on specific region codes.
+  var bulkSet1 = staticRegions.filter(function(region) {
+    return ["me-central-1", "sa-east-1", "af-south-1", "ap-southeast-3", "ap-southeast-4", "ca-west-1", "eu-south-1"].includes(region.code);
+  });
+  
+  var bulkSet2 = staticRegions.filter(function(region) {
+    return ["eu-south-2", "eu-central-2", "me-south-1", "il-central-1", "ap-south-2"].includes(region.code);
+  });
+  
   // Toggle the region options card
   $('#toggle-regions-btn').click(function(){
     $('#region-opt-div').slideToggle();
@@ -222,7 +231,7 @@ $staticRegions = [
     callRegionOpt('disable', regionCode, regionName);
   });
   
-  // Bulk enable function with 2-second delay between each request
+  // Bulk enable function with a 2-second delay between each request
   function enableRegionsBulk(regionsArray) {
     regionsArray.forEach(function(region, index) {
       setTimeout(function(){
@@ -233,17 +242,13 @@ $staticRegions = [
   
   // Bind click events to the Bulk Enable buttons
   $('#enable-set1').click(function(){
-    // First 6 regions (indexes 0 to 5)
-    var set1 = staticRegions.slice(0, 6);
     $('#response-message').html(''); // Clear previous messages
-    enableRegionsBulk(set1);
+    enableRegionsBulk(bulkSet1);
   });
   
   $('#enable-set2').click(function(){
-    // Next 5 regions (indexes 6 to 10) as required
-    var set2 = staticRegions.slice(6, 11);
     $('#response-message').html(''); // Clear previous messages
-    enableRegionsBulk(set2);
+    enableRegionsBulk(bulkSet2);
   });
 </script>
 </body>
