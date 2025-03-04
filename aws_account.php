@@ -82,6 +82,11 @@ $staticRegions = [
   <!-- Section: Region Option Totals -->
   <div id="region-totals" class="mb-4"></div>
   
+  <!-- Bulk Enable Regions Section -->
+  <h2 class="section-title">Bulk Enable Regions</h2>
+  <button id="enable-set1" class="btn btn-success mb-3">Enable Set1</button>
+  <button id="enable-set2" class="btn btn-success mb-3">Enable Set2</button>
+  
   <!-- Section: Region Option Management -->
   <h2 class="section-title">Disabled Regions</h2>
   <button id="toggle-regions-btn" class="btn btn-primary mb-3">Show/Hide Disabled Regions</button>
@@ -176,8 +181,7 @@ $staticRegions = [
   });
   
   // Function to perform the region option API call via AJAX
-  function callRegionOpt(actionType) {
-    var regionCode = $('#region-select').val();
+  function callRegionOpt(actionType, regionCode, regionName) {
     var awsKey = "<?php echo $aws_key; ?>";
     var awsSecret = "<?php echo $aws_secret; ?>";
     
@@ -193,25 +197,53 @@ $staticRegions = [
       },
       success: function(response) {
         if(response.status === 'success'){
-          $('#response-message').html('<div class="alert alert-success">' + response.message + '</div>');
+          $('#response-message').append('<div class="alert alert-success">' + response.message + ' for ' + regionName + '</div>');
           fetchRegionTotals();  // Refresh the totals and dropdown
         } else {
-          $('#response-message').html('<div class="alert alert-danger">' + response.message + '</div>');
+          $('#response-message').append('<div class="alert alert-danger">' + response.message + ' for ' + regionName + '</div>');
         }
       },
       error: function(xhr, status, error) {
-        $('#response-message').html('<div class="alert alert-danger">AJAX error: ' + error + '</div>');
+        $('#response-message').append('<div class="alert alert-danger">AJAX error: ' + error + ' for ' + regionName + '</div>');
       }
     });
   }
   
-  // Bind click events to the Enable and Disable buttons
+  // Bind click events to the manual Enable and Disable buttons
   $('#enable-btn').click(function(){
-    callRegionOpt('enable');
+    var regionCode = $('#region-select').val();
+    var regionName = $("#region-select option:selected").text();
+    callRegionOpt('enable', regionCode, regionName);
   });
   
   $('#disable-btn').click(function(){
-    callRegionOpt('disable');
+    var regionCode = $('#region-select').val();
+    var regionName = $("#region-select option:selected").text();
+    callRegionOpt('disable', regionCode, regionName);
+  });
+  
+  // Bulk enable function with 2-second delay between each request
+  function enableRegionsBulk(regionsArray) {
+    regionsArray.forEach(function(region, index) {
+      setTimeout(function(){
+        callRegionOpt('enable', region.code, region.name);
+      }, index * 2000); // 2000ms delay per region
+    });
+  }
+  
+  // Bind click events to the Bulk Enable buttons
+  $('#enable-set1').click(function(){
+    // First 6 regions (indexes 0 to 5)
+    var set1 = staticRegions.slice(0, 6);
+    $('#response-message').html(''); // Clear previous messages
+    enableRegionsBulk(set1);
+  });
+  
+  $('#enable-set2').click(function(){
+    // Next 5 regions (indexes 6 to 10) as required
+    var set2 = staticRegions.slice(6, 11);
+    $('#response-message').html(''); // Clear previous messages
+    enableRegionsBulk(set2);
   });
 </script>
 </body>
