@@ -1,15 +1,21 @@
 <?php
+// Enable error reporting for debugging
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+// OPTION 1: Keep login check (ensure your login process sets $_SESSION['username'])
+// if (!isset($_SESSION['username'])) {
+//     header("Location: login.php");
+//     exit;
+// }
 
-session_start();
-if (!isset($_SESSION['username'])) {
-    header("Location: login.php");
-    exit;
-}
+// OPTION 2: Remove login check if you want to access this page without login
+// (Comment out or delete the above if-block)
+
+// Include database connection
 include('./db.php');
 
+include "./session.php";
 // ---------- AJAX Update Handling ----------
 if (isset($_POST['action'])) {
     if ($_POST['action'] === 'update_single') {
@@ -33,8 +39,9 @@ if (isset($_POST['action'])) {
         if (isset($_POST['accounts']) && isset($_POST['cr_offset'])) {
             $accounts = $_POST['accounts']; // array of account ids
             $cr_offset = $_POST['cr_offset'];
-            $in = str_repeat('?,', count($accounts) - 1) . '?';
-            $sql = "UPDATE accounts SET cr_offset = ? WHERE account_id IN ($in)";
+            // Create placeholders for the IN clause
+            $placeholders = implode(',', array_fill(0, count($accounts), '?'));
+            $sql = "UPDATE accounts SET cr_offset = ? WHERE account_id IN ($placeholders)";
             $params = array_merge([$cr_offset], $accounts);
             $stmt = $pdo->prepare($sql);
             if ($stmt->execute($params)) {
@@ -48,10 +55,9 @@ if (isset($_POST['action'])) {
         exit;
     }
 }
-// ---------- End AJAX Handling ----------
 
 // ---------------------
-// Optional: User Add Section (if needed)
+// Optional: User Add Section
 // ---------------------
 $message = '';
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_user'])) {
@@ -68,7 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_user'])) {
 }
 
 // ---------------------
-// 1. Fetch account details with computed columns (including payable_value)
+// 1. Fetch account details with computed columns
 // ---------------------
 $sql = "
   SELECT 
@@ -219,14 +225,14 @@ $countHalf = $countTotals['count_half'];
         .container-fluid { padding: 0; }
         .content { padding: 20px; }
         .cr-offset { width: 80px; }
-        /* Two-column layout for Full and Half summaries */
         .summary-col { padding: 20px; }
         .summary-box { border: 1px solid #ddd; padding: 15px; border-radius: 5px; }
     </style>
 </head>
 <body>
-    <?php include "./header.php"; ?>
-
+    <?php 
+    include "header.php";
+    ?>
     <!-- Overall Summary Cards -->
     <div class="container-fluid p-5">
         <div class="row">
@@ -298,10 +304,10 @@ $countHalf = $countTotals['count_half'];
         </div>
     </div>
 
-    <!-- Claim Type Summaries (Full and Half) in Two Columns -->
+    <!-- Claim Type Summaries in Two Columns -->
     <div class="container-fluid">
         <div class="row">
-            <!-- Full Accounts Summary (Left) -->
+            <!-- Full Accounts Summary -->
             <div class="col-md-6 summary-col">
                 <div class="summary-box">
                     <h4>Full Accounts Summary</h4>
@@ -310,7 +316,7 @@ $countHalf = $countTotals['count_half'];
                     <p><strong>Total Offsets:</strong> <?php echo (int)$totalOffsetFull; ?></p>
                 </div>
             </div>
-            <!-- Half Accounts Summary (Right) -->
+            <!-- Half Accounts Summary -->
             <div class="col-md-6 summary-col">
                 <div class="summary-box">
                     <h4>Half Accounts Summary</h4>
