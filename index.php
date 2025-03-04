@@ -229,7 +229,7 @@ if (isset($_POST['submit'])) {
                     <th>Account Score</th>
                     <th>Account Age</th>
                     <th>Next Atm</th>
-                    <th>Credit Offset</th>
+                    <th>Type</th>
                     <th>Added Date</th>
                     <th>Actions</th>
                     <th>Last Used</th>
@@ -293,7 +293,7 @@ if (isset($_POST['submit'])) {
                         }
                     }
                     
-                    echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
+                    echo "<td>" . htmlspecialchars($row['worth_type']) . "</td>";
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M g:i a') . "</td>";
                     
                     echo "<td>
