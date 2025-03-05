@@ -125,7 +125,7 @@ if (isset($_POST['submit'])) {
     <?php include "./header.php"; ?>
     <div class="container mt-3">
         <div class="row">
-            <div class="col-6 col-md-3 mb-3">
+            <div class="col-6 col-md-2 mb-3">
                 <div class="card text-center bg-info text-white">
                     <div class="card-body py-2">
                         <?php $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE DATE(added_date)=CURDATE() AND by_user=$user_id"); ?>
@@ -161,7 +161,7 @@ if (isset($_POST['submit'])) {
                     </div>
                 </div>
             </div>
-            <div class="col-6 col-md-3 mb-3">
+            <div class="col-6 col-md-2 mb-3">
                 <div class="card text-center bg-danger text-white">
                     <div class="card-body py-2">
                         <?php $stmt = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE status='suspended' AND by_user='$user_id' "); ?>
@@ -170,10 +170,80 @@ if (isset($_POST['submit'])) {
                     </div>
                 </div>
             </div>
+            <div class="col-6 col-md-2 mb-3">
+                <div class="card text-center bg-danger text-white">
+                    <div class="card-body py-2">
+                        <?php
+                        $stmt_rejected = $pdo->query("SELECT COUNT(*) AS count FROM accounts WHERE ac_state = 'rejected' AND by_user = '$user_id'");
+                        $rejected_count = $stmt_rejected->fetch(PDO::FETCH_ASSOC)['count'];
+                        ?>
+                        <h6 class="card-title">Total Rejected</h6>
+                        <p class="card-text"><?php echo $rejected_count; ?></p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <div class="container-fluid" style="padding: 4%;">
         <h1>Welcome <?php echo ucfirst($user['name']); ?>!</h1>
+        <h2 class="mt-4">Rejected Accounts</h2>
+        <table id="rejectedTable" class="display">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Account ID</th>
+                    <th>AWS Key</th>
+                    <th>Status</th>
+                    <th>State</th>
+                    <th>Account Score</th>
+                    <th>Account Age</th>
+                    <th>Added Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $stmt = $pdo->query("SELECT * FROM accounts WHERE ac_state = 'rejected' AND by_user = '$session_id' ORDER by id DESC");
+                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    echo "<tr>";
+                    echo "<td>" . $row['id'] . "</td>";
+                    echo "<td>" . htmlspecialchars($row['account_id']) . "</td>";
+                    echo "<td>" . htmlspecialchars($row['aws_key']) . "</td>";
+                    if ($row['status'] == 'active') {
+                        echo "<td><span class='badge badge-success'>Active</span></td>";
+                    } else {
+                        echo "<td><span class='badge badge-danger'>Suspended</span></td>";
+                    }
+                    if ($row['ac_state'] == 'orphan') {
+                        echo "<td><span class='badge badge-warning'>Orphan</span></td>";
+                    } else if ($row['ac_state'] == 'claimed') {
+                        echo "<td><span class='badge badge-success'>Claimed</span></td>";
+                    } else {
+                        echo "<td><span class='badge badge-danger'>Rejected</span></td>";
+                    }
+                    echo "<td>" . htmlspecialchars($row['ac_score']) . "</td>";
+                    if ($row['status'] == 'active') {
+                        $td_Added_date = new DateTime($row['added_date']);
+                        $td_current_date = new DateTime();
+                        $diff = $td_Added_date->diff($td_current_date);
+                        echo "<td>" . $diff->format('%a days') . "</td>";
+                    } else {
+                        $td_Added_date = new DateTime($row['added_date']);
+                        $td_current_date = new DateTime($row['suspended_date']);
+                        $diff = $td_Added_date->diff($td_current_date);
+                        echo "<td>" . $diff->format('%a days') . "</td>";
+                    }
+                    echo "<td>" . (new DateTime($row['added_date']))->format('d M g:i a') . "</td>";
+                    echo "<td>
+                            <button class='btn btn-danger btn-sm delete-btn' data-id='" . $row['id'] . "'>Delete</button>
+                            <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
+                          </td>";
+                    echo "</tr>";
+                }
+                ?>
+            </tbody>
+        </table>
+
         <h2 class="mt-4">Add AWS Account</h2>
         <?php if (!empty($message)) {
             echo '<div class="alert alert-info">' . $message . '</div>';
@@ -216,17 +286,13 @@ if (isset($_POST['submit'])) {
                     echo "<td>" . $row['id'] . "</td>";
                     echo "<td>" . htmlspecialchars($row['account_id']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['aws_key']) . "</td>";
-                    // echo "<td>" . htmlspecialchars() . "</td>";
-                    // echo "<td>" . htmlspecialchars($row['ac_state']) . "</td>";///
-                ?>
-                    <?php
-                    //Account Statuus , Active or suspended
+                    // Account Status , Active or suspended
                     if ($row['status'] == 'active') {
                         echo "<td><span class='badge badge-success'>Active</span></td>";
                     } else {
                         echo "<td><span class='badge badge-danger'>Suspended</span></td>";
                     }
-                    /// Account State,  > Orphan , Claimed , Rejected
+                    // Account State, Orphan , Claimed , Rejected
                     if ($row['ac_state'] == 'orphan') {
                         echo "<td><span class='badge badge-warning'>Orphan</span></td>";
                     } else if ($row['ac_state'] == 'claimed') {
@@ -234,33 +300,26 @@ if (isset($_POST['submit'])) {
                     } else {
                         echo "<td><span class='badge badge-danger'>Rejected</span></td>";
                     }
-                    //Account score like how many time We send a  otp on it
+                    // Account score
                     echo "<td>" . htmlspecialchars($row['ac_score']) . "</td>";
-
-                    //Account age is  suspended theen differeenace betqween suspended_datee and Added_date otheerwise  current date and Added  date
+                    // Account age calculation
                     if ($row['status'] == 'active') {
                         $td_Added_date = new DateTime($row['added_date']);
                         $td_current_date = new DateTime(); // current date and time
-
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     } else {
-                        //Means if suspended then calculate age based  on suspended date
+                        // If suspended then calculate based on suspended date
                         $td_Added_date = new DateTime($row['added_date']);
                         $td_current_date = new DateTime($row['suspended_date']); // current date and time
-
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
-                    ?>
-                <?php
-                    // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
-                    // echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
                     echo "<td>
-                  <button class='btn btn-danger btn-sm delete-btn' data-id='" . $row['id'] . "'>Delete</button>
-                  <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
-                </td>";
+                            <button class='btn btn-danger btn-sm delete-btn' data-id='" . $row['id'] . "'>Delete</button>
+                            <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
+                          </td>";
                     echo "</tr>";
                 }
                 ?>
@@ -272,6 +331,7 @@ if (isset($_POST['submit'])) {
         $(document).ready(function() {
             // Initialize DataTables with pagination
             $('#accountsTable').DataTable();
+            $('#rejectedTable').DataTable();
 
             // Delete account event handler
             $('.delete-btn').click(function() {

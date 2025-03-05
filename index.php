@@ -209,6 +209,7 @@ if (isset($_POST['submit'])) {
                             <a class='btn btn-secondary btn-sm' href='check_quality.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>Chk-Qlty</a>
                             <a class='btn btn-primary btn-sm' href='aws_account.php?id=" . $row['id'] . "' target='_blank'>En-Reg</a>
                             <a class='btn btn-success btn-sm' href='bulk_regional_send.php?ac_id=" . $row['id'] . "&user_id=" . $session_id . "' target='_blank'>BRS</a>
+                            <button class='btn btn-danger btn-sm reject-btn' data-id='" . $row['id'] . "'>Reject</button>
                             <a class='btn btn-primary btn-sm' href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank'>Clear</a>
                           </td>";
                     echo "</tr>";
@@ -426,6 +427,26 @@ if (isset($_POST['submit'])) {
                     },
                     error: function() {
                         alert("An error occurred while deleting the account.");
+                    }
+                });
+            }
+        });
+        
+        // New event handler for Reject button
+        $(document).on('click', '.reject-btn', function(e) {
+            e.preventDefault();
+            if (confirm("Are you sure you want to reject this account?")) {
+                var accountId = $(this).data('id');
+                $.ajax({
+                    url: 'reject_account.php',
+                    type: 'POST',
+                    data: { id: accountId },
+                    success: function(response) {
+                        alert(response);
+                        location.reload();
+                    },
+                    error: function() {
+                        alert("An error occurred while rejecting the account.");
                     }
                 });
             }
