@@ -311,9 +311,9 @@ if (isset($_POST['submit'])) {
                                     <a class='dropdown-item' href='aws_account.php?id=" . $row['id'] . "' target='_blank'>EnableReg</a>
                                     <a class='dropdown-item' href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank'>NodeSender</a>
                                     <a class='dropdown-item' href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank'>Clear</a>
-                                    <!-- New options to update claim type -->
                                     <a class='dropdown-item mark-full-btn' href='#' data-id='" . $row['id'] . "'>Mark-Full</a>
                                     <a class='dropdown-item mark-half-btn' href='#' data-id='" . $row['id'] . "'>Mark-Half</a>
+                                    <a class='dropdown-item temp-suspend-btn' href='#' data-id='" . $row['id'] . "'>[Temp Suspend]</a>
                                 </div>
                             </div>
                           </td>";
@@ -447,6 +447,29 @@ if (isset($_POST['submit'])) {
                     },
                     error: function() {
                         alert("An error occurred while rejecting the account.");
+                    }
+                });
+            }
+        });
+
+        // New event handler for Temp Suspend button
+        $(document).on('click', '.temp-suspend-btn', function(e) {
+            e.preventDefault();
+            var button = $(this);
+            var accountId = button.data('id');
+            if (confirm("Are you sure you want to temporarily suspend this account?")) {
+                $.ajax({
+                    url: 'temp_suspend.php',
+                    type: 'POST',
+                    data: { id: accountId },
+                    success: function(response) {
+                        alert(response);
+                        // Update the Status cell in the row to "Suspended" without refreshing the page
+                        var row = button.closest("tr");
+                        row.find("td:eq(3)").html("<span class='badge badge-danger'>Suspended</span>");
+                    },
+                    error: function() {
+                        alert("An error occurred while temporarily suspending the account.");
                     }
                 });
             }
