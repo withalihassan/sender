@@ -311,14 +311,15 @@ if (isset($_POST['submit'])) {
                                     <a class='dropdown-item' href='aws_account.php?id=" . $row['id'] . "' target='_blank'>EnableReg</a>
                                     <a class='dropdown-item' href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank'>NodeSender</a>
                                     <a class='dropdown-item' href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank'>Clear</a>
-                                    <a class='dropdown-item mark-full-btn' href='#' data-id='" . $row['id'] . "'>Mark-Full</a>
-                                    <a class='dropdown-item mark-half-btn' href='#' data-id='" . $row['id'] . "'>Mark-Half</a>
                                     <a class='dropdown-item temp-suspend-btn' href='#' data-id='" . $row['id'] . "'>[Temp Suspend]</a>
                                 </div>
                             </div>
                           </td>";
                     echo "<td>" . (new DateTime($row['last_used']))->format('d M g:i a') . "</td>";
                     echo "</tr>";
+                    // Ye below two lines Upar dropdown me add ki jaskti ha 
+                    // <a class='dropdown-item mark-full-btn' href='#' data-id='" . $row['id'] . "'>Mark-Full</a>
+                    // <a class='dropdown-item mark-half-btn' href='#' data-id='" . $row['id'] . "'>Mark-Half</a>
                 }
                 ?>
             </tbody>
