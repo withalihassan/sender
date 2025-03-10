@@ -1,103 +1,48 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 session_start();
 if (!isset($_SESSION['username'])) {
     header("Location: login.php");
     exit;
 }
 include('../db.php');
-$message = '';
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_user'])) {
-    $username = trim($_POST['username']);
-    $password = trim($_POST['password']);
-    $account_status = trim($_POST['account_status']);
+$response_message = "";
 
-    // Insert the new user (password stored as plain text per requirements)
-    $stmt = $pdo->prepare("INSERT INTO users (username, password, account_status) VALUES (?, ?, ?)");
-    try {
-        $stmt->execute([$username, $password, $account_status]);
-        $message = "User added successfully!";
-    } catch (PDOException $e) {
-        $message = "Error adding user: " . $e->getMessage();
+// Process delete action
+if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+    $userId = $_GET['id'];
+    $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+    if ($stmt->execute([$userId])) {
+        $response_message = "User deleted successfully!";
+    } else {
+        $response_message = "Error deleting user!";
     }
 }
 
-// ----------------------------------------------------------------
-// 1. Fetch account details with computed columns, including payable_value
-// ----------------------------------------------------------------
-$sql = "
-  SELECT 
-    account_id,
-    status,
-    ac_score,
-    cr_offset,
-    CASE 
-      WHEN status = 'suspended' THEN DATEDIFF(suspended_date, added_date)
-      WHEN status = 'active' THEN DATEDIFF(CURRENT_DATE, added_date)
-      ELSE 0
-    END AS calculated_age,
-    GREATEST(
-      CASE 
-        WHEN status = 'suspended' THEN DATEDIFF(suspended_date, added_date)
-        WHEN status = 'active' THEN DATEDIFF(CURRENT_DATE, added_date)
-        ELSE 0
-      END,
-      ac_score
-    ) AS final_value,
-    (GREATEST(
-      CASE 
-        WHEN status = 'suspended' THEN DATEDIFF(suspended_date, added_date)
-        WHEN status = 'active' THEN DATEDIFF(CURRENT_DATE, added_date)
-        ELSE 0
-      END,
-      ac_score
-    ) - cr_offset) AS payable_value
-  FROM accounts
-  ORDER BY account_id
-";
-$stmt = $pdo->query($sql);
-$accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Process toggle status action (active ↔ onhold)
+if (isset($_GET['action']) && $_GET['action'] === 'toggle' && isset($_GET['id'])) {
+    $userId = $_GET['id'];
+    // Get the current status
+    $stmt = $pdo->prepare("SELECT account_status FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    $userData = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($userData) {
+        $currentStatus = $userData['account_status'];
+        $newStatus = ($currentStatus === 'active') ? 'onhold' : 'active';
+        $stmtUpdate = $pdo->prepare("UPDATE users SET account_status = ? WHERE id = ?");
+        if ($stmtUpdate->execute([$newStatus, $userId])) {
+            $response_message = "User status updated successfully!";
+        } else {
+            $response_message = "Error updating user status!";
+        }
+    } else {
+        $response_message = "User not found!";
+    }
+}
 
-// ----------------------------------------------------------------
-// 2. Compute Totals for the headings:
-//    - Total Final Value
-//    - Total Payable Value (Final Value minus cr_offset)
-//    - Total Offsets (cr_offset)
-// ----------------------------------------------------------------
-$totalQuery = "
-  SELECT 
-    SUM(
-      GREATEST(
-        CASE 
-          WHEN status = 'suspended' THEN DATEDIFF(suspended_date, added_date)
-          WHEN status = 'active' THEN DATEDIFF(CURRENT_DATE, added_date)
-          ELSE 0
-        END,
-        ac_score
-      )
-    ) AS total_final,
-    SUM(
-      (GREATEST(
-        CASE 
-          WHEN status = 'suspended' THEN DATEDIFF(suspended_date, added_date)
-          WHEN status = 'active' THEN DATEDIFF(CURRENT_DATE, added_date)
-          ELSE 0
-        END,
-        ac_score
-      ) - cr_offset)
-    ) AS total_payable,
-    SUM(cr_offset) AS total_offset
-  FROM accounts
-";
-$stmtTotal = $pdo->query($totalQuery);
-$totals = $stmtTotal->fetch(PDO::FETCH_ASSOC);
-$totalFinal   = $totals['total_final'];
-$totalPayable = $totals['total_payable'];
-$totalOffset  = $totals['total_offset'];
+// Fetch all users
+$stmt = $pdo->query("SELECT * FROM users");
+$users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -109,109 +54,86 @@ $totalOffset  = $totals['total_offset'];
     <!-- DataTables CSS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/jquery.dataTables.min.css">
     <style>
-        /* Single container styling */
-        .container-fluid { padding: 0; }
-        .content { padding: 20px; }
+        .container { margin-top: 20px; }
+        .table thead th { background-color: #007bff; color: #fff; }
     </style>
 </head>
 <body>
     <?php include "./header.php"; ?>
-    <!-- Cards Section -->
+
     <div class="container-fluid p-5">
-        <div class="row no-gutters">
-            <!-- Card 1: Total Accounts (active count) -->
-            <div class="col-3 p-1">
-                <div class="card bg-primary text-white border-0">
-                    <div class="card-body p-2">
-                        <?php
-                        $stmtActive = $pdo->query("SELECT COUNT(*) FROM accounts WHERE status = 'active'");
-                        $activeCount = $stmtActive->fetchColumn();
-                        ?>
-                        <h5 class="card-title m-0">Total Accounts</h5>
-                        <h5 class="card-body m-0"><?php echo $activeCount; ?></h5>
-                    </div>
-                </div>
+        <?php if (!empty($response_message)): ?>
+            <div class="alert alert-info">
+                <?php echo htmlspecialchars($response_message); ?>
             </div>
-            <!-- Card 2: Unpaid Accounts -->
-            <div class="col-3 p-1">
-                <div class="card bg-danger text-white border-0">
-                    <div class="card-body p-2">
-                        <?php
-                        // Adjust query for unpaid accounts as needed. Here we assume account_status = 'pending'
-                        $stmtUnpaid = $pdo->query("SELECT COUNT(*) FROM accounts WHERE status = 'pending'");
-                        $unpaidCount = $stmtUnpaid->fetchColumn();
-                        ?>
-                        <h5 class="card-title m-0">Unpaid Accounts</h5>
-                        <h5 class="card-body m-0"><?php echo $unpaidCount; ?></h5>
-                    </div>
-                </div>
-            </div>
-            <!-- Card 3: Total days counted (Total Final Value) -->
-            <div class="col-3 p-1">
-                <div class="card bg-success text-white border-0">
-                    <div class="card-body p-2">
-                        <h5 class="card-title m-0">Total days counted</h5>
-                        <h5 class="card-body m-0"><?php echo (int)$totalFinal; ?></h5>
-                    </div>
-                </div>
-            </div>
-            <!-- Card 4: Remaining days (Total Payable Value) -->
-            <div class="col-3 p-1">
-                <div class="card bg-warning text-white border-0">
-                    <div class="card-body p-2">
-                        <h5 class="card-title m-0">Remaining days</h5>
-                        <h5 class="card-body m-0"><?php echo (int)$totalPayable; ?></h5>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- DataTable Section -->
-    <div class="container-fluid">
-        <div class="content">
-            <h2>Accounts Summary</h2>
-            <!-- Totals Heading -->
-            <p><strong>Total Sum of Final Values:</strong> <?php echo (int)$totalFinal; ?></p>
-            <p><strong>Total Sum of Payable Values:</strong> <?php echo (int)$totalPayable; ?></p>
-            <p><strong>Paid Values (Sum of Offsets):</strong> <?php echo (int)$totalOffset; ?></p>
-            <!-- DataTable -->
-            <table id="accountsTable" class="display" style="width:100%">
-                <thead>
+        <?php endif; ?>
+
+        <h2 class="mb-4">Users &amp; Account Costs</h2>
+        <table id="usersTable" class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Account Status</th>
+                    <th>Type</th>
+                    <th>Created At</th>
+                    <th>Total Accounts</th>
+                    <th>Total Cost (Rs)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($users as $user): ?>
+                    <?php
+                    // Separate query to get the total accounts and cost for the user
+                    $stmtAcc = $pdo->prepare("SELECT COUNT(*) AS total_accounts, 
+                                                   COALESCE(SUM(CASE 
+                                                            WHEN worth_type = 'full' THEN 100 
+                                                            WHEN worth_type = 'half' THEN 70 
+                                                            ELSE 0 
+                                                          END),0) AS total_cost 
+                                              FROM accounts 
+                                              WHERE by_user = ?");
+                    $stmtAcc->execute([$user['id']]);
+                    $accountData = $stmtAcc->fetch(PDO::FETCH_ASSOC);
+
+                    // Format the created_at date nicely
+                    $date = new DateTime($user['created_at']);
+                    $formattedDate = $date->format('M d, Y');
+
+                    // Determine the toggle button label based on current account status
+                    $toggleButtonText = ($user['account_status'] === 'active') ? 'Put on Hold' : 'Activate';
+                    ?>
                     <tr>
-                        <th>Account ID</th>
-                        <th>Status</th>
-                        <th>Account Score</th>
-                        <th>Calculated Age</th>
-                        <th>Final Value</th>
-                        <th>CR Offset</th>
-                        <th>Payable Value</th>
+                        <td><?php echo htmlspecialchars($user['id']); ?></td>
+                        <td><?php echo htmlspecialchars($user['name']); ?></td>
+                        <td><?php echo htmlspecialchars($user['username']); ?></td>
+                        <td><?php echo htmlspecialchars($user['account_status']); ?></td>
+                        <td><?php echo htmlspecialchars($user['type']); ?></td>
+                        <td><?php echo htmlspecialchars($formattedDate); ?></td>
+                        <td><?php echo htmlspecialchars($accountData['total_accounts']); ?></td>
+                        <td><?php echo htmlspecialchars($accountData['total_cost']); ?></td>
+                        <td>
+                            <a href="user_accounts.php?user=<?php echo urlencode($user['id']); ?>"  target='_blank' class="btn btn-info btn-sm mb-1">View Details</a>
+                            <a href="?action=delete&id=<?php echo $user['id']; ?>" class="btn btn-danger btn-sm mb-1" onclick="return confirm('Are you sure you want to delete this user?');">Delete</a>
+                            <a href="?action=toggle&id=<?php echo $user['id']; ?>" class="btn btn-warning btn-sm mb-1"><?php echo $toggleButtonText; ?></a>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($accounts as $acc): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($acc['account_id']); ?></td>
-                            <td><?php echo htmlspecialchars($acc['status']); ?></td>
-                            <td><?php echo (int)$acc['ac_score']; ?></td>
-                            <td><?php echo (int)$acc['calculated_age']; ?></td>
-                            <td><?php echo (int)$acc['final_value']; ?></td>
-                            <td><?php echo (int)$acc['cr_offset']; ?></td>
-                            <td><?php echo (int)$acc['payable_value']; ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
 
-    <!-- jQuery -->
+    <!-- jQuery, DataTables and Bootstrap JS -->
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
     <script>
-    $(document).ready(function() {
-        $('#accountsTable').DataTable();
-    });
+        $(document).ready(function() {
+            $('#usersTable').DataTable({
+                "pageLength": 10
+            });
+        });
     </script>
 </body>
 </html>
