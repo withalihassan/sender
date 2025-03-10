@@ -204,9 +204,9 @@ $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
                     $worth_type = ($account['worth_type'] === 'full' || $account['worth_type'] === 'half') ? $account['worth_type'] : 'half';
                     $paymentStatus = isset($account['payment']) ? $account['payment'] : '';
                     if ($paymentStatus == 'paid') {
-                        $paidButton = 'Paid';
+                        $paidButton = 'Payment Paid';
                     } else {
-                        $paidButton = '<button class="btn btn-success btn-sm mark-paid" data-account-id="' . $account['id'] . '">Paid</button>';
+                        $paidButton = '<button class="btn btn-success btn-sm mark-paid" data-account-id="' . $account['id'] . '">Mark it Paid</button>';
                     }
                 ?>
                 <tr>
@@ -215,7 +215,7 @@ $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
                     <td><?php echo htmlspecialchars($account['account_id']); ?></td>
                     <td><?php echo htmlspecialchars($worth_type); ?></td>
                     <td><?php echo htmlspecialchars(date('M d, Y', strtotime($account['added_date']))); ?></td>
-                    <td><?php echo htmlspecialchars($payments); ?></td>
+                    <td><?php echo htmlspecialchars($account['account_id']); ?></td>
                     <td><?php echo $paidButton; ?></td>
                 </tr>
                 <?php endforeach; ?>
