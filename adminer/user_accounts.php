@@ -42,14 +42,16 @@ if (isset($_POST['action'])) {
             if ($paymentStatus == 'paid') {
                 $paidButton = 'Paid';
             } else {
-                $paidButton = '<button class="btn btn-success btn-sm mark-paid" data-account-id="' . $account['id'] . '">Paid</button>';
+                $paidButton = '<button class="btn btn-success btn-sm mark-paid" data-account-id="' . $account['id'] . '">Mark it Paid</button>';
             }
             $html .= "<tr>";
             $html .= "<td>" . htmlspecialchars($account['id']) . "</td>";
             $html .= "<td>" . htmlspecialchars($account['aws_key']) . "</td>";
+            $html .= "<td>" . htmlspecialchars($account['ac_state']) . "</td>";
             $html .= "<td>" . htmlspecialchars($account['account_id']) . "</td>";
             $html .= "<td>" . htmlspecialchars($worth_type) . "</td>";
             $html .= "<td>" . htmlspecialchars(date('M d, Y', strtotime($account['added_date']))) . "</td>";
+            $html .= "<td>" . htmlspecialchars($account['payment']) . "</td>";
             $html .= "<td>" . $paidButton . "</td>";
             $html .= "</tr>";
         }
@@ -80,23 +82,6 @@ if (!$user) {
 $username = $user['name'];
 
 // Summary Queries
-// Last 7 days half accounts (all non-full accounts are treated as half; cost = 70)
-$sevenDaysHalfStmt = $pdo->prepare("SELECT COUNT(*) AS cnt, COALESCE(SUM(70), 0) AS total_cost 
-                                    FROM accounts 
-                                    WHERE by_user = ? 
-                                      AND added_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND CURDATE() 
-                                      AND (worth_type != 'full')");
-$sevenDaysHalfStmt->execute([$userId]);
-$sevenDaysHalf = $sevenDaysHalfStmt->fetch(PDO::FETCH_ASSOC);
-
-// Last 7 days full accounts (cost = 100)
-$sevenDaysFullStmt = $pdo->prepare("SELECT COUNT(*) AS cnt, COALESCE(SUM(100), 0) AS total_cost 
-                                    FROM accounts 
-                                    WHERE by_user = ? 
-                                      AND added_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND CURDATE() 
-                                      AND worth_type = 'full'");
-$sevenDaysFullStmt->execute([$userId]);
-$sevenDaysFull = $sevenDaysFullStmt->fetch(PDO::FETCH_ASSOC);
 
 // All Time Paid Accounts: separate counts and costs for full and half.
 $allTimePaidStmt = $pdo->prepare("
@@ -110,6 +95,19 @@ $allTimePaidStmt = $pdo->prepare("
 ");
 $allTimePaidStmt->execute([$userId]);
 $allTimePaid = $allTimePaidStmt->fetch(PDO::FETCH_ASSOC);
+
+// All Time Unpaid Accounts: separate counts and costs for full and half.
+$allTimeUnpaidStmt = $pdo->prepare("
+    SELECT 
+        SUM(CASE WHEN (payment <> 'paid' OR payment IS NULL) AND worth_type = 'full' THEN 1 ELSE 0 END) AS full_count,
+        SUM(CASE WHEN (payment <> 'paid' OR payment IS NULL) AND worth_type = 'full' THEN 100 ELSE 0 END) AS full_cost,
+        SUM(CASE WHEN (payment <> 'paid' OR payment IS NULL) AND (worth_type = 'half' OR worth_type <> 'full') THEN 1 ELSE 0 END) AS half_count,
+        SUM(CASE WHEN (payment <> 'paid' OR payment IS NULL) AND (worth_type = 'half' OR worth_type <> 'full') THEN 70 ELSE 0 END) AS half_cost
+    FROM accounts 
+    WHERE by_user = ?
+");
+$allTimeUnpaidStmt->execute([$userId]);
+$allTimeUnpaid = $allTimeUnpaidStmt->fetch(PDO::FETCH_ASSOC);
 
 // Initial Accounts List
 $stmtAccounts = $pdo->prepare("SELECT * FROM accounts WHERE by_user = ? ORDER BY added_date DESC");
@@ -136,37 +134,26 @@ $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
     <div class="container-fluid">
         <h2>User Accounts for <?php echo htmlspecialchars($username); ?></h2>
         
-        <!-- Summary Box -->
+        <!-- Summary Boxes -->
         <div class="row summary-box">
-            <div class="col-md-4">
-                <div class="card text-white bg-info">
-                    <div class="card-body">
-                        <h5 class="card-title">Last 7 Days Half Accounts</h5>
-                        <p class="card-text">
-                            Count: <?php echo $sevenDaysHalf['cnt']; ?>, 
-                            Cost: Rs<?php echo $sevenDaysHalf['total_cost']; ?>
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <div class="card text-white bg-success">
-                    <div class="card-body">
-                        <h5 class="card-title">Last 7 Days Full Accounts</h5>
-                        <p class="card-text">
-                            Count: <?php echo $sevenDaysFull['cnt']; ?>, 
-                            Cost: Rs<?php echo $sevenDaysFull['total_cost']; ?>
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card text-white bg-secondary">
                     <div class="card-body">
                         <h5 class="card-title">All Time Paid Accounts</h5>
                         <p class="card-text">
                             Full: <?php echo $allTimePaid['full_count']; ?> (Rs. <?php echo $allTimePaid['full_cost']; ?>)<br>
                             Half: <?php echo $allTimePaid['half_count']; ?> (Rs. <?php echo $allTimePaid['half_cost']; ?>)
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card text-white bg-warning">
+                    <div class="card-body">
+                        <h5 class="card-title">All Time Unpaid Accounts</h5>
+                        <p class="card-text">
+                            Full: <?php echo $allTimeUnpaid['full_count']; ?> (Rs. <?php echo $allTimeUnpaid['full_cost']; ?>)<br>
+                            Half: <?php echo $allTimeUnpaid['half_count']; ?> (Rs. <?php echo $allTimeUnpaid['half_cost']; ?>)
                         </p>
                     </div>
                 </div>
@@ -192,6 +179,7 @@ $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
                 <tr>
                     <th>ID</th>
                     <th>AWS Key</th>
+                    <th>Account State</th>
                     <th>Account ID</th>
                     <th>Type</th>
                     <th>Added Date</th>
@@ -212,6 +200,7 @@ $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
                 <tr>
                     <td><?php echo htmlspecialchars($account['id']); ?></td>
                     <td><?php echo htmlspecialchars($account['aws_key']); ?></td>
+                    <td><?php echo htmlspecialchars($account['ac_state']); ?></td>
                     <td><?php echo htmlspecialchars($account['account_id']); ?></td>
                     <td><?php echo htmlspecialchars($worth_type); ?></td>
                     <td><?php echo htmlspecialchars(date('M d, Y', strtotime($account['added_date']))); ?></td>
