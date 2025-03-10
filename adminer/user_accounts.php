@@ -144,7 +144,7 @@ $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
                         <h5 class="card-title">Last 7 Days Half Accounts</h5>
                         <p class="card-text">
                             Count: <?php echo $sevenDaysHalf['cnt']; ?>, 
-                            Cost: $<?php echo $sevenDaysHalf['total_cost']; ?>
+                            Cost: Rs<?php echo $sevenDaysHalf['total_cost']; ?>
                         </p>
                     </div>
                 </div>
@@ -155,7 +155,7 @@ $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
                         <h5 class="card-title">Last 7 Days Full Accounts</h5>
                         <p class="card-text">
                             Count: <?php echo $sevenDaysFull['cnt']; ?>, 
-                            Cost: $<?php echo $sevenDaysFull['total_cost']; ?>
+                            Cost: Rs<?php echo $sevenDaysFull['total_cost']; ?>
                         </p>
                     </div>
                 </div>
@@ -165,8 +165,8 @@ $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
                     <div class="card-body">
                         <h5 class="card-title">All Time Paid Accounts</h5>
                         <p class="card-text">
-                            Full: <?php echo $allTimePaid['full_count']; ?> ($<?php echo $allTimePaid['full_cost']; ?>)<br>
-                            Half: <?php echo $allTimePaid['half_count']; ?> ($<?php echo $allTimePaid['half_cost']; ?>)
+                            Full: <?php echo $allTimePaid['full_count']; ?> (Rs. <?php echo $allTimePaid['full_cost']; ?>)<br>
+                            Half: <?php echo $allTimePaid['half_count']; ?> (Rs. <?php echo $allTimePaid['half_cost']; ?>)
                         </p>
                     </div>
                 </div>
@@ -215,7 +215,7 @@ $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
                     <td><?php echo htmlspecialchars($account['account_id']); ?></td>
                     <td><?php echo htmlspecialchars($worth_type); ?></td>
                     <td><?php echo htmlspecialchars(date('M d, Y', strtotime($account['added_date']))); ?></td>
-                    <td><?php echo htmlspecialchars($account['account_id']); ?></td>
+                    <td><?php echo htmlspecialchars($account['payment']); ?></td>
                     <td><?php echo $paidButton; ?></td>
                 </tr>
                 <?php endforeach; ?>
