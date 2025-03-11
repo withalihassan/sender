@@ -311,6 +311,7 @@ if (isset($_POST['submit'])) {
                                     <a class='dropdown-item' href='aws_account.php?id=" . $row['id'] . "' target='_blank'>EnableReg</a>
                                     <a class='dropdown-item' href='nodesender/sender.php?id=" . $row['id'] . "' target='_blank'>NodeSender</a>
                                     <a class='dropdown-item' href='clear_region.php?ac_id=" . $row['id'] . "' target='_blank'>Clear</a>
+                                    <a class='dropdown-item mark-half-btn' href='#' data-id='" . $row['id'] . "'>Convert to Half</a>
                                     <a class='dropdown-item temp-suspend-btn' href='#' data-id='" . $row['id'] . "'>[Temp Suspend]</a>
                                 </div>
                             </div>
