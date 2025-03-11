@@ -109,8 +109,8 @@ $allTimeUnpaidStmt = $pdo->prepare("
 $allTimeUnpaidStmt->execute([$userId]);
 $allTimeUnpaid = $allTimeUnpaidStmt->fetch(PDO::FETCH_ASSOC);
 
-// Initial Accounts List
-$stmtAccounts = $pdo->prepare("SELECT * FROM accounts WHERE by_user = ? ORDER BY added_date DESC");
+// Initial Accounts ListAND 
+$stmtAccounts = $pdo->prepare("SELECT * FROM accounts WHERE by_user = ? AND converted_to_half_at  IS NULL ORDER BY added_date DESC");
 $stmtAccounts->execute([$userId]);
 $accounts = $stmtAccounts->fetchAll(PDO::FETCH_ASSOC);
 ?>

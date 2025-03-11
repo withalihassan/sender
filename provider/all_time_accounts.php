@@ -45,19 +45,14 @@ $session_id = $_SESSION['user_id'];
     /* Custom styling for a sleek, professional header */
     .navbar-custom {
         background-color: #343a40;
-        /* Dark background */
     }
-
     .navbar-custom .navbar-brand,
     .navbar-custom .nav-link {
         color: #ffffff;
-        /* White text */
     }
-
     .navbar-custom .nav-link:hover {
         color: #dcdcdc;
     }
-
     .navbar-toggler {
         border-color: rgba(255, 255, 255, 0.1);
     }
@@ -69,7 +64,6 @@ $session_id = $_SESSION['user_id'];
         <?php if (!empty($message)) {
             echo '<div class="alert alert-info">' . $message . '</div>';
         } ?>
-
         <hr>
         <h2>All Time Accounts List</h2>
         <table id="accountsTable" class="display">
@@ -78,35 +72,48 @@ $session_id = $_SESSION['user_id'];
                     <th>ID</th>
                     <th>Account ID</th>
                     <th>AWS Key</th>
+                    <th>Type</th>
                     <th>Status</th>
                     <th>State</th>
                     <th>Account Score</th>
                     <th>Account Age</th>
-                    <!-- <th>Credit Offset</th> -->
                     <th>Added Date</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php
-                // Fetch all accounts from the database and display them
-                $stmt = $pdo->query("SELECT * FROM accounts WHERE by_user = '$session_id' ORDER  by 1 DESC");
+                // Fetch accounts for the logged-in user where converted_to_half_at is NULL.
+                // The subquery ensures that only the record with the maximum id for each account_id is returned.
+                $query = "SELECT * FROM accounts 
+                          WHERE by_user = '$session_id' 
+                            AND converted_to_half_at IS NULL 
+                            AND id IN (
+                                SELECT MAX(id) 
+                                FROM accounts 
+                                WHERE by_user = '$session_id' 
+                                  AND converted_to_half_at IS NULL 
+                                GROUP BY account_id
+                            )
+                          ORDER BY id DESC";
+                $stmt = $pdo->query($query);
                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     echo "<tr>";
                     echo "<td>" . $row['id'] . "</td>";
                     echo "<td>" . htmlspecialchars($row['account_id']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['aws_key']) . "</td>";
-                    // echo "<td>" . htmlspecialchars() . "</td>";
-                    // echo "<td>" . htmlspecialchars($row['ac_state']) . "</td>";///
-                ?>
-                    <?php
-                    //Account Statuus , Active or suspended
+                    
+                    // Display Type: if null, show Pending; otherwise, show the value (full or half)
+                    echo "<td>" . (isset($row['worth_type']) && $row['worth_type'] !== null ? htmlspecialchars($row['worth_type']) : "Pending") . "</td>";
+                    
+                    // Account Status: Active or Suspended
                     if ($row['status'] == 'active') {
                         echo "<td><span class='badge badge-success'>Active</span></td>";
                     } else {
                         echo "<td><span class='badge badge-danger'>Suspended</span></td>";
                     }
-                    /// Account State,  > Orphan , Claimed , Rejected
+                    
+                    // Account State: Orphan, Claimed, or Rejected
                     if ($row['ac_state'] == 'orphan') {
                         echo "<td><span class='badge badge-warning'>Orphan</span></td>";
                     } else if ($row['ac_state'] == 'claimed') {
@@ -114,33 +121,32 @@ $session_id = $_SESSION['user_id'];
                     } else {
                         echo "<td><span class='badge badge-danger'>Rejected</span></td>";
                     }
-                    //Account score like how many time We send a  otp on it
+                    
+                    // Account Score
                     echo "<td>" . htmlspecialchars($row['ac_score']) . "</td>";
-
-                    //Account age is  suspended theen differeenace betqween suspended_datee and Added_date otheerwise  current date and Added  date
+                    
+                    // Calculate Account Age
                     if ($row['status'] == 'active') {
-                        $td_Added_date = new DateTime($row['added_date']);
-                        $td_current_date = new DateTime(); // current date and time
-
-                        $diff = $td_Added_date->diff($td_current_date);
+                        $addedDate = new DateTime($row['added_date']);
+                        $currentDate = new DateTime();
+                        $diff = $addedDate->diff($currentDate);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     } else {
-                        //Means if suspended then calculate age based  on suspended date
-                        $td_Added_date = new DateTime($row['added_date']);
-                        $td_current_date = new DateTime($row['suspended_date']); // current date and time
-
-                        $diff = $td_Added_date->diff($td_current_date);
+                        // If suspended, calculate age based on suspended_date
+                        $addedDate = new DateTime($row['added_date']);
+                        $suspendedDate = new DateTime($row['suspended_date']);
+                        $diff = $addedDate->diff($suspendedDate);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
-                    ?>
-                <?php
-                    // echo "<td>" . htmlspecialchars($row['ac_age']) . "</td>";
-                    // echo "<td>" . htmlspecialchars($row['cr_offset']) . "</td>";
+                    
+                    // Display Added Date in "d M" format
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
+                    
+                    // Action buttons
                     echo "<td>
-                  <button class='btn btn-danger btn-sm delete-btn' data-id='" . $row['id'] . "'>Delete</button>
-                  <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
-                </td>";
+                            <button class='btn btn-danger btn-sm delete-btn' data-id='" . $row['id'] . "'>Delete</button>
+                            <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
+                          </td>";
                     echo "</tr>";
                 }
                 ?>
@@ -160,9 +166,7 @@ $session_id = $_SESSION['user_id'];
                     $.ajax({
                         url: './scripts/delete_account.php',
                         type: 'POST',
-                        data: {
-                            id: id
-                        },
+                        data: { id: id },
                         success: function(response) {
                             alert(response);
                             location.reload();
@@ -180,9 +184,7 @@ $session_id = $_SESSION['user_id'];
                 $.ajax({
                     url: './scripts/check_status.php',
                     type: 'POST',
-                    data: {
-                        id: id
-                    },
+                    data: { id: id },
                     success: function(response) {
                         alert(response);
                         location.reload();

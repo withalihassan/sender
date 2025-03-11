@@ -184,6 +184,20 @@ if (isset($_POST['submit'])) {
             </div>
         </div>
     </div>
+    <div class="container">
+        <div class="d-flex justify-content-center align-items-center mt-4">
+            <div class="p-3 bg-light border rounded" style="font-size: 1.2rem;">
+                <?php
+                // $sql = "SELECT COUNT(*) FROM accounts WHERE payment IS NULL AND ac_state='claimed'";/
+                ?>
+                <span class="mr-3">Total Full Accounts: <span class="font-weight-bold text-primary"><?php echo $count_full = $pdo->query("SELECT COUNT(*) FROM accounts WHERE payment IS NULL AND ac_state = 'claimed' AND by_user='$user_id' AND worth_type='full' ")->fetchColumn(); ?></span></span>
+                <span class="mr-3">Total Half Accounts: <span class="font-weight-bold text-success"><?php echo $count_half = $pdo->query("SELECT COUNT(*) FROM accounts WHERE payment IS NULL AND converted_to_half_at IS NULL AND ac_state = 'claimed' AND by_user='$user_id' AND worth_type='half' ")->fetchColumn(); ?></span></span>
+                <span>Overall Total: <span class="font-weight-bold text-danger"><?php echo $total_full_half= $count_full + $count_half+0;?></span></span>
+            </div>
+        </div>
+    </div>
+
+
     <div class="container-fluid" style="padding: 4%;">
         <h1>Welcome <?php echo ucfirst($user['name']); ?>!</h1>
         <h2 class="mt-4">Rejected Accounts</h2>
@@ -280,19 +294,19 @@ if (isset($_POST['submit'])) {
             <tbody>
                 <?php
                 // Fetch all accounts from the database and display them
-                $stmt = $pdo->query("SELECT * FROM accounts WHERE by_user = '$session_id' AND DATE(added_date) = CURDATE()");
+                $stmt = $pdo->query("SELECT * FROM accounts WHERE by_user = '$session_id' AND DATE(added_date) = CURDATE() AND converted_to_half_at IS NULL");
                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     echo "<tr>";
                     echo "<td>" . $row['id'] . "</td>";
                     echo "<td>" . htmlspecialchars($row['account_id']) . "</td>";
                     echo "<td>" . htmlspecialchars($row['aws_key']) . "</td>";
-                    // Account Status , Active or suspended
+                    // Account Status, Active or Suspended
                     if ($row['status'] == 'active') {
                         echo "<td><span class='badge badge-success'>Active</span></td>";
                     } else {
                         echo "<td><span class='badge badge-danger'>Suspended</span></td>";
                     }
-                    // Account State, Orphan , Claimed , Rejected
+                    // Account State: Orphan, Claimed, Rejected
                     if ($row['ac_state'] == 'orphan') {
                         echo "<td><span class='badge badge-warning'>Orphan</span></td>";
                     } else if ($row['ac_state'] == 'claimed') {
@@ -311,19 +325,20 @@ if (isset($_POST['submit'])) {
                     } else {
                         // If suspended then calculate based on suspended date
                         $td_Added_date = new DateTime($row['added_date']);
-                        $td_current_date = new DateTime($row['suspended_date']); // current date and time
+                        $td_current_date = new DateTime($row['suspended_date']); // suspended date
                         $diff = $td_Added_date->diff($td_current_date);
                         echo "<td>" . $diff->format('%a days') . "</td>";
                     }
                     echo "<td>" . (new DateTime($row['added_date']))->format('d M') . "</td>";
                     echo "<td>
-                            <button class='btn btn-danger btn-sm delete-btn' data-id='" . $row['id'] . "'>Delete</button>
-                            <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
-                          </td>";
+                <button class='btn btn-danger btn-sm delete-btn' data-id='" . $row['id'] . "'>Delete</button>
+                <button class='btn btn-info btn-sm check-status-btn' data-id='" . $row['id'] . "'>Check Status</button>
+              </td>";
                     echo "</tr>";
                 }
                 ?>
             </tbody>
+
         </table>
     </div>
 
