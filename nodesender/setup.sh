@@ -24,7 +24,7 @@ sudo git clone https://github.com/withalihassan/sender.git
 cd sender
 
 # Checkout the "remote" branch
-sudo git checkout remote
+# sudo git checkout remote
 
 # Copy all files from the repository to the Apache web root
 sudo cp -r ./* /var/www/html/

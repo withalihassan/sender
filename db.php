@@ -1,4 +1,7 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 // db.php
 // $host     = '47.89.232.110';
 // $host     = 'localhost';
