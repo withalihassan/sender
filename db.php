@@ -28,7 +28,7 @@ if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '47.89.232.110') {
     // Otherwise, use the remote IP address.
     $host = '47.89.232.110';
 }
-echo $host;
+// echo $host;
 $dbname   = 'sender';
 $username = 'sender';
 $password = 'Tech@#009';
