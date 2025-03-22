@@ -69,7 +69,7 @@
   <nav class="nav">
     <ul>
       <li><a href="index.php">Home</a></li>
-      <li><a href="./sendko/" target="_blank">Home</a></li>
+      <li><a href="./sendko/" target="_blank">Sendko</a></li>
       <li><a href="number_dir.php">Numbers Directory</a></li>
       <li><a href="my_numbers.php">My Numbers</a></li>
       <li><a href="ac_summary.php">Ac Summary</a></li>
