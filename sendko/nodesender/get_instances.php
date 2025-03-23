@@ -38,10 +38,10 @@ if ($instances) {
     echo '<td>' . htmlspecialchars($instance['instance_type']) . '</td>';
     echo '<td>' . htmlspecialchars($instance['state']) . '</td>';
     echo '<td>' . htmlspecialchars($instance['launch_time']) . '</td>';
-    echo '<td><a href="http://' . $instance['public_ip'] . '" target="_blank">' . $instance['public_ip'] . '</a><br>
+    echo '<td><a href="http://' . $instance['public_ip'] . '/sendko/" target="_blank">' . $instance['public_ip'] . '</a><br>
           </td>';
 
-    echo '<td><a href="http://' . $instance['elastic_ip'] . '" target="_blank">' . $instance['elastic_ip'] . '</a><br>
+    echo '<td><a href="http://' . $instance['elastic_ip'] . '/sendko/" target="_blank">' . $instance['elastic_ip'] . '</a><br>
           </td>';
     echo '<td>S > <a href="http://' . $instance['public_ip'] . '/bulk_send.php?ac_id=' . $account_id . '&user_id=' . $session_id . '" target="_blank">' . $instance['public_ip'] . '</a><br>
           R > <a href="http://' . $instance['public_ip'] . '/bulk_regional_send.php?ac_id=' . $account_id . '&user_id=' . $session_id . '" target="_blank">' . $instance['public_ip'] . '</a>
