@@ -18,10 +18,10 @@ cd /var/www/html
 sudo rm -f index.html
 
 # Clone the repository from GitHub into the Apache web root
-sudo git clone https://github.com/withalihassan/sendko.git
+sudo git clone https://github.com/withalihassan/sender.git
 
 # Change into the cloned repository directory
-cd sendko
+cd sender
 
 # Checkout the "remote" branch
 # sudo git checkout remote
