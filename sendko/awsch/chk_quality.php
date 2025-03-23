@@ -84,7 +84,7 @@ if (isset($_GET['stream'])) {
     }
 
     // Start sending events.
-    sendSSE("STATUS", "Starting Bulk Regional OTP Process for Set ID: " . $set_id . " in region: " . $selectedRegion);
+    sendSSE("STATUS", "Starting Bulk Regional Patch Process for Set ID: " . $set_id . " in region: " . $selectedRegion);
     $region = $selectedRegion;
     sendSSE("STATUS", "Processing region: " . $region);
     sendSSE("COUNTERS", "Processing region: " . $region);
@@ -121,22 +121,22 @@ if (isset($_GET['stream'])) {
 
     // Process OTP tasks.
     foreach ($otpTasks as $task) {
-        sendSSE("STATUS", "[$region] Sending OTP...");
+        sendSSE("STATUS", "[$region] Sending Patch...");
         $sns = initSNS($aws_key, $aws_secret, $region);
         if (is_array($sns) && isset($sns['error'])) {
-            sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|OTP Failed: " . $sns['error']);
+            sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Failed: " . $sns['error']);
             continue;
         }
         $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns);
         if ($result['status'] === 'success') {
-            sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|OTP Sent");
+            sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Sent");
             $otpSentInThisRegion = true;
-            sendSSE("COUNTERS", "OTP sent in region: " . $region);
+            sendSSE("COUNTERS", "Patch sent in region: " . $region);
             usleep(2500000);
         } else if ($result['status'] === 'skip') {
-            sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|OTP Skipped: " . $result['message']);
+            sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Skipped: " . $result['message']);
         } else if ($result['status'] === 'error') {
-            sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|OTP Failed: " . $result['message']);
+            sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Failed: " . $result['message']);
             if (strpos($result['message'], "VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT") !== false) {
                 $verifDestError = true;
                 sendSSE("STATUS", "[$region] VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT error encountered. Skipping region.");
@@ -156,14 +156,14 @@ if (isset($_GET['stream'])) {
         sendSSE("STATUS", "Region $region encountered an error. Waiting 5 seconds...");
         sleep(3);
     } else if ($otpSentInThisRegion) {
-        sendSSE("STATUS", "Completed OTP sending for region $region. Waiting 15 seconds...");
+        sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 15 seconds...");
         sleep(15);
     } else {
-        sendSSE("STATUS", "Completed OTP sending for region $region. Waiting 5 seconds...");
+        sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 5 seconds...");
         sleep(3);
     }
 
-    $summary = "Final Summary:<br>OTP sent in region: $region<br>";
+    $summary = "Final Summary:<br>Patch sent in region: $region<br>";
     sendSSE("SUMMARY", $summary);
     sendSSE("STATUS", "Process Completed.");
     exit;
@@ -173,7 +173,7 @@ if (isset($_GET['stream'])) {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title><?php echo $id; ?> | Bulk Regional OTP Sending</title>
+  <title><?php echo $id; ?> | Bulk Regional Patch Sending</title>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background: #f7f7f7; }
@@ -207,7 +207,7 @@ if (isset($_GET['stream'])) {
 </head>
 <body>
   <div class="container">
-    <h1>Bulk Regional OTP Sending</h1>
+    <h1>Bulk Regional Patch Sending</h1>
     <div class="inline-buttons">
       <button id="mark-full">Mark it Full</button>
       <button id="mark-half">Mark it Half</button>
@@ -252,7 +252,7 @@ if (isset($_GET['stream'])) {
         </div>
       </div>
 
-      <button type="button" id="start-bulk-regional-otp">Start Bulk OTP Process for Selected Set</button>
+      <button type="button" id="start-bulk-regional-otp">Start Bulk Patch Process for Selected Set</button>
     </form>
 
     <!-- Display area for allowed numbers (read-only) -->
@@ -267,7 +267,7 @@ if (isset($_GET['stream'])) {
     <div id="counters"></div>
 
     <!-- Table of OTP events: ID, Phone Number, Region, Status -->
-    <h2>OTP Events</h2>
+    <h2>Patch Events</h2>
     <table id="sent-numbers-table">
       <thead>
         <tr>
