@@ -43,7 +43,7 @@ if (isset($_POST['submit'])) {
             // Create an STS client using provided credentials
             $stsClient = new StsClient([
                 'version'     => 'latest',
-                'region'      => 'us-east-1', // change as needed
+                'region'      => 'us-east-1', // adjust as needed
                 'credentials' => [
                     'key'    => $aws_key,
                     'secret' => $aws_secret,
@@ -77,18 +77,33 @@ if (isset($_POST['submit'])) {
     }
 }
 
-// Process second form: create a child IAM user using root account keys
+// Process second form: use root keys to fetch AWS account id, then create child IAM user and its keys
 if (isset($_POST['submit_child'])) {
-    $root_key       = trim($_POST['root_key']);
-    $root_secret    = trim($_POST['root_secret']);
-    $ac_worth_child = trim($_POST['ac_worth_child']);
+    $root_key         = trim($_POST['root_key']);
+    $root_secret      = trim($_POST['root_secret']);
+    $ac_worth_child   = trim($_POST['ac_worth_child']);
     $assign_to_child  = trim($_POST['assign_to_child']);
 
     if (empty($root_key) || empty($root_secret) || empty($assign_to_child)) {
-        $childMessage = " AWS Key,  AWS Secret, and Consumer assignment cannot be empty.";
+        $childMessage = "AWS Key, AWS Secret, and Consumer assignment cannot be empty.";
     } else {
         try {
-            // Create an IAM client with the root credentials
+            // Use the root credentials to get the AWS Account ID
+            $rootStsClient = new StsClient([
+                'version'     => 'latest',
+                'region'      => 'us-east-1',
+                'credentials' => [
+                    'key'    => $root_key,
+                    'secret' => $root_secret,
+                ]
+            ]);
+            $rootIdentity = $rootStsClient->getCallerIdentity();
+            $account_id   = $rootIdentity->get('Account');
+
+            // Wait 1 second to ensure proper processing
+            sleep(1);
+
+            // Now, using the same root credentials, create a child IAM user
             $iamClient = new IamClient([
                 'version'     => 'latest',
                 'region'      => 'us-east-1',
@@ -99,10 +114,10 @@ if (isset($_POST['submit_child'])) {
             ]);
             
             // Generate a unique IAM user name for the child account
-            $childUsername = time();
+            $childUsername = "child-" . time();
             
-            // Create the IAM user (child account)
-            $createUserResult = $iamClient->createUser([
+            // Create the IAM user (child)
+            $iamClient->createUser([
                 'UserName' => $childUsername,
             ]);
             
@@ -123,13 +138,12 @@ if (isset($_POST['submit_child'])) {
             // Set added date using Pakistan timezone
             $added_date_child = (new DateTime('now', new DateTimeZone('Asia/Karachi')))->format('Y-m-d H:i:s');
             
-            // Insert the new child account keys into the database.
-            // Here, account_id is set to the IAM user's name and ac_state to 'child'
+            // Insert the child account keys and the AWS Account ID into the database.
             $stmt = $pdo->prepare("INSERT INTO accounts (by_user, aws_key, aws_secret, account_id, status, ac_state, ac_score, ac_age, cr_offset, added_date, ac_worth) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            if ($stmt->execute([$assign_to_child, $childAccessKeyId, $childSecretAccessKey, $childUsername, 'active', 'child', '0', '0', '0', $added_date_child, $ac_worth_child])) {
-                $childMessage = "Account Added successfully.  With  Special ID: " . htmlspecialchars($childUsername);
+            if ($stmt->execute([$assign_to_child, $childAccessKeyId, $childSecretAccessKey, $account_id, 'active', 'child', '0', '0', '0', $added_date_child, $ac_worth_child])) {
+                $childMessage = "Child account created successfully. AWS Account ID: " . htmlspecialchars($account_id);
             } else {
-                $childMessage = "Failed to insert account into the database.";
+                $childMessage = "Failed to insert child account into the database.";
             }
         } catch (AwsException $e) {
             $childMessage = "AWS Error: " . $e->getAwsErrorMessage();
@@ -244,7 +258,7 @@ if (isset($_POST['submit_child'])) {
                             ?>
                         </select>
                     </div>
-                    <button type="submit" name="submit_child" class="btn btn-primary">Added Account Pro</button>
+                    <button type="submit" name="submit_child" class="btn btn-primary">Create Child Account</button>
                 </form>
             </div>
         </div>
@@ -282,7 +296,7 @@ if (isset($_POST['submit_child'])) {
                     } else if ($row['ac_state'] == 'claimed') {
                         echo "<td><span class='badge badge-success'>Claimed</span></td>";
                     } else if ($row['ac_state'] == 'child') {
-                        echo "<td><span class='badge badge-info'>ID</span></td>";
+                        echo "<td><span class='badge badge-info'>Child</span></td>";
                     } else {
                         echo "<td><span class='badge badge-danger'>Rejected</span></td>";
                     }
