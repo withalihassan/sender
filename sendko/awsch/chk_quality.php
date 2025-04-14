@@ -1,5 +1,5 @@
 <?php
-// bulk_regional_send.php
+// chk_quality.php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -30,19 +30,16 @@ if (!isset($_GET['ac_id'])) {
     echo "Account ID required.";
     exit;
 }
-
 $id = htmlspecialchars($_GET['ac_id']);
 
 // Fetch AWS credentials for the provided account ID from child_accounts table
 $stmt = $pdo->prepare("SELECT aws_access_key, aws_secret_key FROM child_accounts WHERE account_id = ?");
 $stmt->execute([$id]);
 $account = $stmt->fetch(PDO::FETCH_ASSOC);
-
 if (!$account) {
     echo "Account not found.";
     exit;
 }
-
 $accountId = $id; // using provided account id
 
 // Set the timezone to Asia/Karachi
@@ -66,13 +63,15 @@ if (isset($_GET['stream'])) {
     }
     $set_id = intval($_GET['set_id']);
     $selectedRegion = $_GET['region'];
+    // Retrieve language parameter from GET (default to "es-419")
+    $language = isset($_GET['language']) ? trim($_GET['language']) : "es-419";
 
     // Turn off output buffering and enable implicit flush to force events immediately.
     while (ob_get_level()) {
         ob_end_clean();
     }
     ob_implicit_flush(true);
-
+    
     // SSE headers must be sent without any preceding whitespace.
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache');
@@ -82,19 +81,19 @@ if (isset($_GET['stream'])) {
         echo "data:" . $type . "|" . str_replace("\n", "\\n", $message) . "\n\n";
         @flush();
     }
-
+    
     // Start sending events.
     sendSSE("STATUS", "Starting Bulk Regional Patch Process for Set ID: " . $set_id . " in region: " . $selectedRegion);
     $region = $selectedRegion;
     sendSSE("STATUS", "Processing region: " . $region);
     sendSSE("COUNTERS", "Processing region: " . $region);
-
+    
     $otpSentInThisRegion = false;
     $verifDestError = false;
-
+    
     $internal_call = true;
     require_once('region_ajax_handler_chk.php');
-
+    
     // Fetch phone numbers based solely on the set_id for the selected region.
     $numbersResult = fetch_numbers($region, $pdo, $set_id);
     if (isset($numbersResult['error'])) {
@@ -108,17 +107,24 @@ if (isset($_GET['stream'])) {
         sleep(5);
         exit;
     }
-
+    
     // Build OTP tasks.
-    $otpTasks = array();
-    $first = $allowedNumbers[0];
-    for ($i = 0; $i < 4; $i++) {
-        $otpTasks[] = array('id' => $first['id'], 'phone' => $first['phone_number']);
+    // If six or more numbers exist, add the first five once and the sixth twice (total 7 tasks).
+    if (count($allowedNumbers) >= 6) {
+        $otpTasks = array();
+        for ($i = 0; $i < 5; $i++) {
+            $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
+        }
+        $otpTasks[] = array('id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']);
+        $otpTasks[] = array('id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']);
+    } else {
+        // If fewer than 6 numbers exist, add all numbers once.
+        $otpTasks = array();
+        foreach ($allowedNumbers as $number) {
+            $otpTasks[] = array('id' => $number['id'], 'phone' => $number['phone_number']);
+        }
     }
-    for ($i = 1; $i < min(count($allowedNumbers), 10); $i++) {
-        $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
-    }
-
+    
     // Process OTP tasks.
     foreach ($otpTasks as $task) {
         sendSSE("STATUS", "[$region] Sending Patch...");
@@ -127,7 +133,8 @@ if (isset($_GET['stream'])) {
             sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Failed: " . $sns['error']);
             continue;
         }
-        $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns);
+        // Pass the language parameter to send_otp_single
+        $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns, $language);
         if ($result['status'] === 'success') {
             sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Sent");
             $otpSentInThisRegion = true;
@@ -162,7 +169,7 @@ if (isset($_GET['stream'])) {
         sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 5 seconds...");
         sleep(3);
     }
-
+    
     $summary = "Final Summary:<br>Patch sent in region: $region<br>";
     sendSSE("SUMMARY", $summary);
     sendSSE("STATUS", "Process Completed.");
@@ -252,10 +259,11 @@ if (isset($_GET['stream'])) {
         </div>
       </div>
 
+      <!-- You may add additional dropdowns for language if needed -->
       <button type="button" id="start-bulk-regional-otp">Start Bulk Patch Process for Selected Set</button>
     </form>
 
-    <!-- Display area for allowed numbers (read-only) -->
+    <!-- Display area for allowed phone numbers (read-only) -->
     <label for="numbers">Allowed Phone Numbers (from database):</label>
     <textarea id="numbers" name="numbers" rows="10" readonly></textarea>
 
@@ -266,7 +274,7 @@ if (isset($_GET['stream'])) {
     <h2>Live Counters</h2>
     <div id="counters"></div>
 
-    <!-- Table of OTP events: ID, Phone Number, Region, Status -->
+    <!-- Table of Patch events: ID, Phone Number, Region, Status -->
     <h2>Patch Events</h2>
     <table id="sent-numbers-table">
       <thead>
@@ -338,6 +346,7 @@ if (isset($_GET['stream'])) {
         $('#counters').html('');
 
         // Start SSE connection with the selected set_id and region.
+        // If you want to pass a language parameter here, you can append &language=es-419 (or desired value)
         var evtSource = new EventSource("chk_quality.php?ac_id=" + acId + "&set_id=" + set_id + "&region=" + region + "&stream=1");
         evtSource.onmessage = function(e) {
           var data = e.data;
@@ -387,7 +396,7 @@ if (isset($_GET['stream'])) {
           }
         });
       });
-
+      
       $('#mark-half').click(function() {
         $.ajax({
           url: "chk_quality.php?ac_id=" + acId,

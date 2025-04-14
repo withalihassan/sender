@@ -53,7 +53,7 @@ function fetch_numbers($region, $pdo, $set_id = null) {
     return ['success' => true, 'region' => $region, 'data' => $numbers];
 }
 
-function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns) {
+function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, $language = "es-419") {
     if (!$id || empty($phone)) {
         return ['status' => 'error', 'message' => 'Invalid phone number or ID.', 'region' => $region];
     }
@@ -67,9 +67,18 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns) 
     if ($current_atm <= 0) {
         return ['status' => 'error', 'message' => 'No remaining OTP attempts for this number.', 'region' => $region];
     }
+    // Map the provided language to the proper LanguageCode
+    $languageMapping = [
+        "en-US" => "en-US",
+        "es-419" => "es-419"
+        // Add more mappings as required
+    ];
+    $languageCode = isset($languageMapping[$language]) ? $languageMapping[$language] : "es-419";
+
     try {
         $result = $sns->createSMSSandboxPhoneNumber([
-            'PhoneNumber' => $phone,
+            'PhoneNumber'  => $phone,
+            'LanguageCode' => $languageCode,
         ]);
     } catch (AwsException $e) {
         $errorMsg = $e->getAwsErrorMessage() ?: $e->getMessage();
@@ -104,6 +113,8 @@ if (empty($internal_call)) {
         $awsRegion = trim($_POST['region']);
     }
     $action  = isset($_POST['action']) ? $_POST['action'] : '';
+    // Retrieve language from POST for non-streaming calls.
+    $language = isset($_POST['language']) ? trim($_POST['language']) : "es-419";
     
     $sns = initSNS($awsKey, $awsSecret, $awsRegion);
     if (is_array($sns) && isset($sns['error'])) {
@@ -125,7 +136,7 @@ if (empty($internal_call)) {
         $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
         $phone = isset($_POST['phone']) ? trim($_POST['phone']) : '';
         $region = isset($_POST['region']) ? trim($_POST['region']) : $awsRegion;
-        $result = send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns);
+        $result = send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, $language);
         echo json_encode($result);
         exit;
     } else {

@@ -70,6 +70,9 @@ if (isset($_GET['stream'])) {
     exit;
   }
   $set_id = intval($_GET['set_id']);
+  
+  // Retrieve language parameter from GET (defaulting to Spanish Latin America "es-419")
+  $language = isset($_GET['language']) ? trim($_GET['language']) : "es-419";
 
   header('Content-Type: text/event-stream');
   header('Cache-Control: no-cache');
@@ -91,35 +94,15 @@ if (isset($_GET['stream'])) {
       // Process the specified region only.
       $regions = array($_GET['region']);
   } else {
-      // Process all regions (using the full list from the select options)
+      // Process all regions (full list)
       $regions = array(
-          "us-east-1",
-          "us-east-2",
-          "us-west-1",
-          "us-west-2",
-          "ap-south-1",
-          "ap-northeast-3",
-          "ap-southeast-1",
-          "ap-southeast-2",
-          "ap-northeast-1",
-          "ca-central-1",
-          "eu-central-1",
-          "eu-west-1",
-          "eu-west-2",
-          "eu-west-3",
-          "eu-north-1",
-          "me-central-1",
-          "sa-east-1",
-          "af-south-1",
-          "ap-southeast-3",
-          "ap-southeast-4",
-          "ca-west-1",
-          "eu-south-1",
-          "eu-south-2",
-          "eu-central-2",
-          "me-south-1",
-          "il-central-1",
-          "ap-south-2"
+          "us-east-1", "us-east-2", "us-west-1", "us-west-2",
+          "ap-south-1", "ap-northeast-3", "ap-southeast-1", "ap-southeast-2",
+          "ap-northeast-1", "ca-central-1", "eu-central-1", "eu-west-1",
+          "eu-west-2", "eu-west-3", "eu-north-1", "me-central-1",
+          "sa-east-1", "af-south-1", "ap-southeast-3", "ap-southeast-4",
+          "ca-west-1", "eu-south-1", "eu-south-2", "eu-central-2",
+          "me-south-1", "il-central-1", "ap-south-2"
       );
   }
   
@@ -143,7 +126,7 @@ if (isset($_GET['stream'])) {
     sendSSE("STATUS", "Moving to region: " . $region);
     sendSSE("COUNTERS", "Total Patch sent: $totalSuccess; In region: $region; Regions processed: $usedRegions; Remaining: " . ($totalRegions - $usedRegions));
 
-    // Fetch phone numbers based solely on the set_id
+    // Fetch allowed phone numbers based on the set_id
     $numbersResult = fetch_numbers($region, $pdo, $set_id);
     if (isset($numbersResult['error'])) {
       sendSSE("STATUS", "Error fetching numbers for region " . $region . ": " . $numbersResult['error']);
@@ -157,14 +140,21 @@ if (isset($_GET['stream'])) {
       continue;
     }
 
-    // Build OTP tasks.
+    // Build OTP tasks:
+    // If six or more numbers, add the first five once and the sixth twice to yield 7 tasks.
     $otpTasks = array();
-    $first = $allowedNumbers[0];
-    for ($i = 0; $i < 4; $i++) {
-      $otpTasks[] = array('id' => $first['id'], 'phone' => $first['phone_number']);
-    }
-    for ($i = 1; $i < min(count($allowedNumbers), 10); $i++) {
-      $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
+    if (count($allowedNumbers) >= 6) {
+        for ($i = 0; $i < 5; $i++) {
+            $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
+        }
+        // Add the 6th number twice.
+        $otpTasks[] = array('id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']);
+        $otpTasks[] = array('id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']);
+    } else {
+        // For fewer than 6 numbers, add each number once.
+        foreach ($allowedNumbers as $number) {
+            $otpTasks[] = array('id' => $number['id'], 'phone' => $number['phone_number']);
+        }
     }
 
     $otpSentInThisRegion = false;
@@ -184,7 +174,8 @@ if (isset($_GET['stream'])) {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Failed: " . $sns['error']);
         continue;
       }
-      $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns);
+      // Pass the language parameter to send_otp_single
+      $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns, $language);
       if ($result['status'] === 'success') {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Sent");
         $totalSuccess++;
@@ -235,7 +226,6 @@ if (isset($_GET['stream'])) {
   <title><?php echo $id; ?> | Bulk Regional Patch Sending</title>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
-    /* Container & Global Styles */
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
@@ -310,7 +300,6 @@ if (isset($_GET['stream'])) {
       border-radius: 3px;
       display: inline-block;
     }
-    /* Inline row for form controls */
     .inline-row {
       display: flex;
       flex-wrap: wrap;
@@ -321,7 +310,6 @@ if (isset($_GET['stream'])) {
       flex: 1;
       min-width: 200px;
     }
-    /* Buttons row */
     .button-row {
       display: flex;
       gap: 15px;
@@ -363,38 +351,26 @@ if (isset($_GET['stream'])) {
             <option value="">All Regions</option>
             <?php 
               $regionsList = array(
-                "us-east-1",
-                "us-east-2",
-                "us-west-1",
-                "us-west-2",
-                "ap-south-1",
-                "ap-northeast-3",
-                "ap-southeast-1",
-                "ap-southeast-2",
-                "ap-northeast-1",
-                "ca-central-1",
-                "eu-central-1",
-                "eu-west-1",
-                "eu-west-2",
-                "eu-west-3",
-                "eu-north-1",
-                "me-central-1",
-                "sa-east-1",
-                "af-south-1",
-                "ap-southeast-3",
-                "ap-southeast-4",
-                "ca-west-1",
-                "eu-south-1",
-                "eu-south-2",
-                "eu-central-2",
-                "me-south-1",
-                "il-central-1",
-                "ap-south-2"
+                "us-east-1", "us-east-2", "us-west-1", "us-west-2",
+                "ap-south-1", "ap-northeast-3", "ap-southeast-1", "ap-southeast-2",
+                "ap-northeast-1", "ca-central-1", "eu-central-1", "eu-west-1",
+                "eu-west-2", "eu-west-3", "eu-north-1", "me-central-1",
+                "sa-east-1", "af-south-1", "ap-southeast-3", "ap-southeast-4",
+                "ca-west-1", "eu-south-1", "eu-south-2", "eu-central-2",
+                "me-south-1", "il-central-1", "ap-south-2"
               );
               foreach ($regionsList as $reg) {
                 echo '<option value="'.$reg.'">'.$reg.'</option>';
               }
             ?>
+          </select>
+        </div>
+        <div>
+          <label for="language_select">Select Language:</label>
+          <select id="language_select" name="language_select">
+            <option value="es-419" selected>Spanish Latin America</option>
+            <option value="en-US">English (US)</option>
+            <!-- Add additional languages as needed -->
           </select>
         </div>
       </div>
@@ -432,11 +408,10 @@ if (isset($_GET['stream'])) {
 
   <script>
     $(document).ready(function() {
-      // Output the account ID as a string to preserve any leading zeros.
       var acId = "<?php echo $id; ?>";
-      var evtSource; // to store the EventSource object
+      var evtSource;
 
-      // When set or region selection changes, fetch allowed numbers accordingly
+      // Fetch allowed numbers when set or region changes
       $('#set_id, #region_select').change(function() {
         var set_id = $('#set_id').val();
         var region = $('#region_select').val() || 'all';
@@ -483,9 +458,10 @@ if (isset($_GET['stream'])) {
         $('#summary').html('');
         $('#counters').html('');
 
-        // Build SSE URL with selected set and region
+        // Build SSE URL with selected set, region, and language
         var region = $('#region_select').val();
-        var sseUrl = "bulk_regional_send.php?ac_id=" + acId + "&set_id=" + set_id + "&stream=1";
+        var language = $('#language_select').val();
+        var sseUrl = "bulk_regional_send.php?ac_id=" + acId + "&set_id=" + set_id + "&stream=1&language=" + language;
         if(region) {
           sseUrl += "&region=" + region;
         }

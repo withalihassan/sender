@@ -201,8 +201,8 @@ if (isset($_GET['stream'])) {
         $totalSuccess++;
         $otpSentInThisRegion = true;
         sendSSE("COUNTERS", "Total Patch sent: $totalSuccess; In region: $region; Regions processed: $usedRegions; Remaining: " . ($totalRegions - $usedRegions));
-        // sleep(1);
-        usleep(500000);
+        sleep(2);
+        // usleep(500000);
       } else if ($result['status'] === 'skip') {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Skipped: " . $result['message']);
       } else if ($result['status'] === 'error') {
