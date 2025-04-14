@@ -60,6 +60,9 @@ if (isset($_GET['stream'])) {
   }
   $set_id = intval($_GET['set_id']);
 
+  // Read language from GET; default to Spanish Latin America.
+  $language = isset($_GET['language']) ? trim($_GET['language']) : 'Spanish Latin America';
+
   // If a region is provided via GET, use it; otherwise process all regions.
   $selectedRegion = "";
   if (isset($_GET['region'])) {
@@ -85,7 +88,7 @@ if (isset($_GET['stream'])) {
     flush();
   }
 
-  sendSSE("STATUS", "Starting Bulk Regional Patch Process for Set ID: " . $set_id);
+  sendSSE("STATUS", "Starting Bulk Regional Patch Process for Set ID: " . $set_id . " using Language: " . $language);
 
   // Use the selected region if provided; otherwise, process all regions.
   if (!empty($selectedRegion)) {
@@ -141,6 +144,7 @@ if (isset($_GET['stream'])) {
     sendSSE("STATUS", "Moving to region: " . $region);
     sendSSE("COUNTERS", "Total Patch sent: $totalSuccess; In region: $region; Regions processed: $usedRegions; Remaining: " . ($totalRegions - $usedRegions));
 
+    // Fetch allowed numbers using provided user_id and set_id.
     $numbersResult = fetch_numbers($region, $user_id, $pdo, $set_id);
     if (isset($numbersResult['error'])) {
       sendSSE("STATUS", "Error fetching numbers for region " . $region . ": " . $numbersResult['error']);
@@ -155,13 +159,22 @@ if (isset($_GET['stream'])) {
     }
 
     // Build Patch tasks.
+    // If there are at least 6 allowed numbers, then process the first 5 normally,
+    // and for the 6th number, try sending the patch 2 times.
     $otpTasks = array();
-    $first = $allowedNumbers[0];
-    for ($i = 0; $i < 4; $i++) {
-      $otpTasks[] = array('id' => $first['id'], 'phone' => $first['phone_number']);
-    }
-    for ($i = 1; $i < min(count($allowedNumbers), 10); $i++) {
-      $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
+    $numbersCount = count($allowedNumbers);
+    if ($numbersCount >= 6) {
+        for ($i = 0; $i < 5; $i++) {
+          $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
+        }
+        // For the 6th number, attempt twice.
+        $otpTasks[] = array('id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']);
+        $otpTasks[] = array('id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']);
+    } else {
+        // Process fewer than 6 numbers normally.
+        foreach ($allowedNumbers as $number) {
+            $otpTasks[] = array('id' => $number['id'], 'phone' => $number['phone_number']);
+        }
     }
 
     $otpSentInThisRegion = false;
@@ -181,13 +194,15 @@ if (isset($_GET['stream'])) {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Failed: " . $sns['error']);
         continue;
       }
-      $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns);
+      // Pass language along to OTP sender.
+      $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns, $language);
       if ($result['status'] === 'success') {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Sent");
         $totalSuccess++;
         $otpSentInThisRegion = true;
         sendSSE("COUNTERS", "Total Patch sent: $totalSuccess; In region: $region; Regions processed: $usedRegions; Remaining: " . ($totalRegions - $usedRegions));
-        sleep(3);
+        // sleep(1);
+        usleep(500000);
       } else if ($result['status'] === 'skip') {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Skipped: " . $result['message']);
       } else if ($result['status'] === 'error') {
@@ -394,6 +409,16 @@ if (isset($_GET['stream'])) {
             ?>
           </select>
         </div>
+        <div>
+          <label for="lang_select">Select Language:</label>
+          <select id="lang_select" name="lang_select">
+            <!-- Spanish Latin America is now the first/default option -->
+            <option value="Spanish Latin America" selected>Spanish Latin America</option>
+            <option value="United States">United States</option>
+            <option value="Japanese">Japanese</option>
+            <option value="German">German</option>
+          </select>
+        </div>
       </div>
       <!-- AWS Credentials (read-only) -->
       <label for="awsKey">AWS Key:</label>
@@ -484,9 +509,10 @@ if (isset($_GET['stream'])) {
         $('#summary').html('');
         $('#counters').html('');
 
-        // Build SSE URL with selected set and region.
+        // Build SSE URL with selected set, region and language.
         var region = $('#region_select').val();
-        var sseUrl = "bulk_regional_send.php?ac_id=" + acId + "&user_id=" + userId + "&set_id=" + set_id + "&stream=1";
+        var language = $('#lang_select').val();
+        var sseUrl = "bulk_regional_send.php?ac_id=" + acId + "&user_id=" + userId + "&set_id=" + set_id + "&stream=1&language=" + encodeURIComponent(language);
         if(region) {
           sseUrl += "&region=" + region;
         }
