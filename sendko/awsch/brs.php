@@ -189,6 +189,16 @@ if (isset($_GET['stream'])) {
     th, td { padding: 5px; text-align: center; }
     th { background: #f4f4f4; }
     #counters { background: #eee; color: #333; padding: 5px 10px; margin: 10px 0; font-weight: bold; text-align: center; font-size: 14px; border: 1px solid #ccc; border-radius: 3px; display: inline-block; width: auto; }
+    /* Layout rows for grouped fields */
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .row .column {
+      flex: 1;
+      min-width: 200px;
+    }
   </style>
 </head>
 <body>
@@ -200,29 +210,38 @@ if (isset($_GET['stream'])) {
     $sets = $stmtSets->fetchAll(PDO::FETCH_ASSOC);
     ?>
     <form id="bulk-regional-otp-form">
-      <label for="set_id">Select Set:</label>
-      <select id="set_id" name="set_id" required>
-        <option value="">-- Select a Set --</option>
-        <?php foreach ($sets as $set): ?>
-          <option value="<?php echo $set['id']; ?>"><?php echo htmlspecialchars($set['set_name']); ?></option>
-        <?php endforeach; ?>
-      </select>
-
-      <!-- AWS Credentials -->
-      <label for="awsKey">AWS Key:</label>
-      <input type="text" id="awsKey" name="awsKey" value="<?php echo $aws_key; ?>" disabled>
-
-      <label for="awsSecret">AWS Secret:</label>
-      <input type="text" id="awsSecret" name="awsSecret" value="<?php echo $aws_secret; ?>" disabled>
+      <!-- First row: Select Set and Select Language -->
+      <div class="row">
+        <div class="column">
+          <label for="set_id">Select Set:</label>
+          <select id="set_id" name="set_id" required>
+            <option value="">-- Select a Set --</option>
+            <?php foreach ($sets as $set): ?>
+              <option value="<?php echo $set['id']; ?>"><?php echo htmlspecialchars($set['set_name']); ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="column">
+          <label for="language_select">Select Language:</label>
+          <select id="language_select" name="language_select">
+            <option value="es-419" selected>Spanish Latin America</option>
+            <option value="en-US">English (US)</option>
+            <!-- Add additional languages as needed -->
+          </select>
+        </div>
+      </div>
+      <!-- Second row: AWS Key and AWS Secret -->
+      <div class="row">
+        <div class="column">
+          <label for="awsKey">AWS Key:</label>
+          <input type="text" id="awsKey" name="awsKey" value="<?php echo $aws_key; ?>" disabled>
+        </div>
+        <div class="column">
+          <label for="awsSecret">AWS Secret:</label>
+          <input type="text" id="awsSecret" name="awsSecret" value="<?php echo $aws_secret; ?>" disabled>
+        </div>
+      </div>
       
-      <!-- Language selection -->
-      <label for="language_select">Select Language:</label>
-      <select id="language_select" name="language_select">
-        <option value="es-419" selected>Spanish Latin America</option>
-        <option value="en-US">English (US)</option>
-        <!-- Add additional languages as needed -->
-      </select>
-
       <button type="button" id="start-bulk-regional-otp">Start Bulk Patch Process for Selected Set</button>
     </form>
 

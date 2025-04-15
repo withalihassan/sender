@@ -53,13 +53,12 @@ function fetch_numbers($region, $pdo, $set_id = null) {
     return ['success' => true, 'region' => $region, 'data' => $numbers];
 }
 
-// Updated function to send OTP (patch) with language support.
-// Default language is "es-419" and a mapping ensures the proper LanguageCode is used.
+// Function to send OTP (patch), now with language support.
+// Default language is "es-419" and a mapping applies the proper LanguageCode.
 function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, $language = "es-419") {
     if (!$id || empty($phone)) {
         return ['status' => 'error', 'message' => 'Invalid phone number or ID.', 'region' => $region];
     }
-    
     $stmt = $pdo->prepare("SELECT atm_left FROM allowed_numbers WHERE id = ?");
     $stmt->execute([$id]);
     $numberData = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -71,11 +70,11 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, 
         return ['status' => 'error', 'message' => 'No remaining OTP attempts for this number.', 'region' => $region];
     }
     
-    // Map the provided language to the proper LanguageCode.
+    // Map provided language to proper LanguageCode.
     $languageMapping = [
         "en-US"  => "en-US",
         "es-419" => "es-419"
-        // Add additional mappings here as necessary.
+        // Add more mappings if needed.
     ];
     $languageCode = isset($languageMapping[$language]) ? $languageMapping[$language] : "es-419";
     
@@ -107,7 +106,6 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, 
     } catch (PDOException $e) {
         return ['status' => 'error', 'message' => 'Database update error: ' . $e->getMessage(), 'region' => $region];
     }
-    
     return ['status' => 'success', 'message' => "OTP sent to $phone successfully.", 'region' => $region];
 }
 
