@@ -1,7 +1,10 @@
 <?php
 // manage_account.php
 
-include('db.php'); // This file must initialize your $pdo connection
+require 'vendor/autoload.php';                // AWS SDK for PHP
+include('db.php');                            // initializes $pdo
+use Aws\Sns\SnsClient;
+use Aws\Exception\AwsException;
 
 // Ensure account ID and user ID are provided via GET
 if (!isset($_GET['ac_id']) || !isset($_GET['user_id'])) {
@@ -14,7 +17,7 @@ $user_id = intval($_GET['user_id']);
 
 // Handle Stop Process request (AJAX POST)
 if (isset($_POST['action']) && $_POST['action'] === 'stop_process') {
-    $stopFile = "stop_" . $id . ".txt";
+    $stopFile = "stop_{$id}.txt";
     file_put_contents($stopFile, "stop");
     echo json_encode(['success' => true, 'message' => 'Process stopped successfully.']);
     exit;
@@ -42,14 +45,12 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_account') {
 $stmt = $pdo->prepare("SELECT aws_key, aws_secret FROM accounts WHERE id = ?");
 $stmt->execute([$id]);
 $account = $stmt->fetch(PDO::FETCH_ASSOC);
-
 if (!$account) {
     echo "Account not found.";
     exit;
 }
-
-$aws_key    = htmlspecialchars($account['aws_key']);
-$aws_secret = htmlspecialchars($account['aws_secret']);
+$aws_key    = $account['aws_key'];
+$aws_secret = $account['aws_secret'];
 
 // STREAMING MODE: If stream=1 is present, run the SSE loop.
 if (isset($_GET['stream'])) {
@@ -58,148 +59,107 @@ if (isset($_GET['stream'])) {
         exit;
     }
     $set_id = intval($_GET['set_id']);
-
-    // Read language from GET; default to Spanish Latin America.
     $language = isset($_GET['language']) ? trim($_GET['language']) : 'Spanish Latin America';
 
-    // If a single region is provided via GET, use it; otherwise process all.
+    // Determine regions
     if (isset($_GET['region']) && trim($_GET['region']) !== '') {
-        $regions = array(trim($_GET['region']));
+        $regions = [ trim($_GET['region']) ];
     } else {
-        // First group: always active regions
-        $regions = array(
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2",
-            "ap-south-1",
-            "ap-northeast-3",
-            "ap-southeast-1",
-            "ap-southeast-2",
-            "ap-northeast-1",
-            "ca-central-1",
-            "eu-central-1",
-            "eu-west-1",
-            "eu-west-2",
-            "eu-west-3",
-            "eu-north-1",
-            // Second group: conditional regions (may be disabled initially)
-            "me-central-1",
-            "sa-east-1",
-            "af-south-1",
-            "ap-southeast-3",
-            "ap-southeast-4",
-            "ca-west-1",
-            "eu-south-1",
-            "eu-south-2",
-            "eu-central-2",
-            "me-south-1",
-            "il-central-1",
-            "ap-south-2"
-        );
+        $regions = [
+            "us-east-1","us-east-2","us-west-1","us-west-2",
+            "ap-south-1","ap-northeast-3","ap-southeast-1","ap-southeast-2",
+            "ap-northeast-1","ca-central-1","eu-central-1","eu-west-1",
+            "eu-west-2","eu-west-3","eu-north-1",
+            // conditional
+            "me-central-1","sa-east-1","af-south-1","ap-southeast-3",
+            "ap-southeast-4","ca-west-1","eu-south-1","eu-south-2",
+            "eu-central-2","me-south-1","il-central-1","ap-south-2"
+        ];
     }
+    $conditional = [
+        "me-central-1","sa-east-1","af-south-1","ap-southeast-3",
+        "ap-southeast-4","ca-west-1","eu-south-1","eu-south-2",
+        "eu-central-2","me-south-1","il-central-1","ap-south-2"
+    ];
 
     $totalRegions = count($regions);
     $totalSuccess = 0;
-    $usedRegions = 0;
+    $usedRegions   = 0;
 
     // Prepare stop file and SSE headers
-    $stopFile = "stop_" . $id . ".txt";
-    if (file_exists($stopFile)) {
-        unlink($stopFile);
-    }
+    $stopFile = "stop_{$id}.txt";
+    if (file_exists($stopFile)) unlink($stopFile);
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache');
-    while (ob_get_level()) {
-        ob_end_flush();
-    }
+    while (ob_get_level()) ob_end_flush();
     set_time_limit(0);
     ignore_user_abort(true);
 
-    function sendSSE($type, $message)
-    {
-        echo "data:" . $type . "|" . str_replace("\n", "\\n", $message) . "\n\n";
+    function sendSSE($type, $message) {
+        echo "data:{$type}|" . str_replace("\n","\\n", $message) . "\n\n";
         flush();
     }
 
-    sendSSE("STATUS", "Starting Bulk Regional Patch Process for Set ID: $set_id using Language: $language");
+    sendSSE("STATUS", "Starting Bulk Regional Patch Process for Set ID: {$set_id} using Language: {$language}");
 
-    // Define conditional regions list
-    $conditional = array(
-        "me-central-1",
-        "sa-east-1",
-        "af-south-1",
-        "ap-southeast-3",
-        "ap-southeast-4",
-        "ca-west-1",
-        "eu-south-1",
-        "eu-south-2",
-        "eu-central-2",
-        "me-south-1",
-        "il-central-1",
-        "ap-south-2"
-    );
-
-    // Include helper for fetching numbers
-    require_once('region_ajax_handler.php');
-
+    // Loop regions
     foreach ($regions as $region) {
-        // Check for stop flag.
+        // Stop if requested
         if (file_exists($stopFile)) {
             sendSSE("STATUS", "Process stopped by user.");
             unlink($stopFile);
             exit;
         }
 
-        // For conditional regions, wait until enabled
-        if (in_array($region, $conditional)) {
+        // Conditional region: check via AWS API
+        if (in_array($region, $conditional, true)) {
             do {
-                // Call internal enable check via HTTP
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, "http://{$_SERVER['HTTP_HOST']}/region_enable_handler.php?ac_id=$id&user_id=$user_id");
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['action' => 'check_region_status', 'region' => $region]));
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                $resp = curl_exec($ch);
-                curl_close($ch);
-                $statusData = json_decode($resp, true);
-                $stat = $statusData['success'] && isset($statusData['status']) ? $statusData['status'] : 'DISABLED';
-                if ($stat === 'ENABLED') {
+                sendSSE("STATUS", "Checking if region {$region} is enabled via AWS API...");
+                $snsClient = new SnsClient([
+                    'version'     => '2010-03-31',
+                    'region'      => $region,
+                    'credentials' => [ 'key' => $aws_key, 'secret' => $aws_secret ]
+                ]);
+                try {
+                    // Try a simple SMS attribute fetch to confirm regional enablement
+                    $snsClient->getSMSAttributes(['attributes' => []]);
+                    // success -> region is enabled
                     break;
+                } catch (AwsException $e) {
+                    sendSSE("STATUS", "Region {$region} not yet enabled: " . $e->getAwsErrorCode());
+                    sleep(30);
                 }
-                sendSSE("STATUS", "Waiting for region $region to be enabled...");
-                sleep(30);
             } while (true);
-            sendSSE("STATUS", "Region $region enabled. Proceeding...");
+            sendSSE("STATUS", "Region {$region} enabled. Proceeding...");
         }
 
         // Begin region processing
         $usedRegions++;
-        sendSSE("STATUS", "Moving to region: $region");
-        sendSSE("COUNTERS", "Total Patch sent: $totalSuccess; In region: $region; Regions processed: $usedRegions; Remaining: " . ($totalRegions - $usedRegions));
+        sendSSE("STATUS", "Moving to region: {$region}");
+        sendSSE("COUNTERS", "Total Patch sent: {$totalSuccess}; In region: {$region}; Regions processed: {$usedRegions}; Remaining: " . ($totalRegions - $usedRegions));
 
-        // Fetch allowed numbers using provided user_id and set_id.
+        // Fetch allowed numbers
+        require_once('region_ajax_handler.php');
         $numbersResult = fetch_numbers($region, $user_id, $pdo, $set_id);
         if (isset($numbersResult['error'])) {
-            sendSSE("STATUS", "Error fetching numbers for region $region: " . $numbersResult['error']);
+            sendSSE("STATUS", "Error fetching numbers for region {$region}: " . $numbersResult['error']);
             sleep(5);
             continue;
         }
         $allowedNumbers = $numbersResult['data'];
         if (empty($allowedNumbers)) {
-            sendSSE("STATUS", "No allowed numbers found in region: $region");
+            sendSSE("STATUS", "No allowed numbers found in region: {$region}");
             sleep(5);
             continue;
         }
 
-        // Build Patch tasks
+        // Build and send patches (same as before)
         $otpTasks = [];
         $count = count($allowedNumbers);
         if ($count >= 6) {
             for ($i = 0; $i < 5; $i++) {
                 $otpTasks[] = ['id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']];
             }
-            // 6th twice
             $otpTasks[] = ['id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']];
             $otpTasks[] = ['id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']];
         } else {
@@ -217,29 +177,32 @@ if (isset($_GET['stream'])) {
                 unlink($stopFile);
                 exit;
             }
-            sendSSE("STATUS", "[$region] Sending Patch...");
+            sendSSE("STATUS", "[{$region}] Sending Patch...");
             $sns = initSNS($aws_key, $aws_secret, $region);
             if (is_array($sns) && isset($sns['error'])) {
-                sendSSE("ROW", "{$task['id']}|{$task['phone']}|$region|Patch Failed: {$sns['error']}");
+                sendSSE("ROW", "{$task['id']}|{$task['phone']}|{$region}|Patch Failed: {$sns['error']}");
                 continue;
             }
-            $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns, $language);
+            $result = send_otp_single(
+                $task['id'], $task['phone'], $region,
+                $aws_key, $aws_secret, $user_id, $pdo, $sns, $language
+            );
             if ($result['status'] === 'success') {
-                sendSSE("ROW", "{$task['id']}|{$task['phone']}|$region|Patch Sent");
+                sendSSE("ROW", "{$task['id']}|{$task['phone']}|{$region}|Patch Sent");
                 $totalSuccess++;
                 $otpSentInThisRegion = true;
-                sendSSE("COUNTERS", "Total Patch sent: $totalSuccess; In region: $region; Regions processed: $usedRegions; Remaining: " . ($totalRegions - $usedRegions));
+                sendSSE("COUNTERS", "Total Patch sent: {$totalSuccess}; In region: {$region}; Regions processed: {$usedRegions}; Remaining: " . ($totalRegions - $usedRegions));
                 sleep(2);
             } elseif ($result['status'] === 'skip') {
-                sendSSE("ROW", "{$task['id']}|{$task['phone']}|$region|Patch Skipped: {$result['message']}");
+                sendSSE("ROW", "{$task['id']}|{$task['phone']}|{$region}|Patch Skipped: {$result['message']}");
             } else {
-                sendSSE("ROW", "{$task['id']}|{$task['phone']}|$region|Patch Failed: {$result['message']}");
+                sendSSE("ROW", "{$task['id']}|{$task['phone']}|{$region}|Patch Failed: {$result['message']}");
                 if (strpos($result['message'], "VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT") !== false) {
                     $verifDestError = true;
-                    sendSSE("STATUS", "[$region] VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT error encountered. Skipping region.");
+                    sendSSE("STATUS", "[{$region}] VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT error encountered. Skipping region.");
                     break;
                 } elseif (strpos($result['message'], "Access Denied") !== false || strpos($result['message'], "Region Restricted") !== false) {
-                    sendSSE("STATUS", "[$region] Critical error ({$result['message']}). Skipping region.");
+                    sendSSE("STATUS", "[{$region}] Critical error ({$result['message']}). Skipping region.");
                     break;
                 } else {
                     sleep(5);
@@ -248,18 +211,18 @@ if (isset($_GET['stream'])) {
         }
 
         if ($verifDestError) {
-            sendSSE("STATUS", "Region $region encountered an error. Waiting 5 seconds...");
+            sendSSE("STATUS", "Region {$region} encountered an error. Waiting 5 seconds...");
             sleep(5);
         } elseif ($otpSentInThisRegion) {
-            sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 20 seconds...");
+            sendSSE("STATUS", "Completed Patch sending for region {$region}. Waiting 20 seconds...");
             sleep(20);
         } else {
-            sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 5 seconds...");
+            sendSSE("STATUS", "Completed Patch sending for region {$region}. Waiting 5 seconds...");
             sleep(5);
         }
     }
 
-    $summary = "Final Summary:<br>Total Patch sent: $totalSuccess<br>Regions processed: $usedRegions<br>Remaining regions: " . ($totalRegions - $usedRegions);
+    $summary = "Final Summary:<br>Total Patch sent: {$totalSuccess}<br>Regions processed: {$usedRegions}<br>Remaining regions: " . ($totalRegions - $usedRegions);
     sendSSE("SUMMARY", $summary);
     sendSSE("STATUS", "Process Completed.");
     exit;
