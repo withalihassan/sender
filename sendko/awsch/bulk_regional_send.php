@@ -654,7 +654,7 @@ if (isset($_GET['stream'])) {
                 "eu-south-1", "eu-south-2", "eu-central-2",
                 "me-south-1", "il-central-1", "ap-south-2"
             ];
-            const maxConcurrent = 6;
+            const maxConcurrent = 5;
             const delayMs = 2000; // 2 seconds
             const pollIntervals = {};
             let queue = [];
