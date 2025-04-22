@@ -2,7 +2,7 @@
 // manage_account.php
 
 include('db.php'); // This file must initialize your $pdo connection
-// include "./region_ajax_handler.php";
+
 // Ensure account ID and user ID are provided via GET
 if (!isset($_GET['ac_id']) || !isset($_GET['user_id'])) {
     echo "Account ID and User ID required.";
@@ -23,7 +23,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'stop_process') {
 // Update account request (Mark as Completed)
 if (isset($_POST['action']) && $_POST['action'] === 'update_account') {
     if ($id > 0) {
-        // Update the account with current Pakistan time
         date_default_timezone_set('Asia/Karachi');
         $currentTimestamp = date('Y-m-d H:i:s');
         $stmt = $pdo->prepare("UPDATE accounts SET ac_score = ac_score + 1, last_used = :last_used WHERE id = :id");
@@ -63,38 +62,11 @@ if (isset($_GET['stream'])) {
     // Read language from GET; default to Spanish Latin America.
     $language = isset($_GET['language']) ? trim($_GET['language']) : 'Spanish Latin America';
 
-    // If a region is provided via GET, use it; otherwise process all regions.
-    $selectedRegion = "";
-    if (isset($_GET['region'])) {
-        $selectedRegion = trim($_GET['region']);
-    }
-
-    // Remove any pre-existing stop file.
-    $stopFile = "stop_" . $id . ".txt";
-    if (file_exists($stopFile)) {
-        unlink($stopFile);
-    }
-
-    header('Content-Type: text/event-stream');
-    header('Cache-Control: no-cache');
-    while (ob_get_level()) {
-        ob_end_flush();
-    }
-    set_time_limit(0);
-    ignore_user_abort(true);
-
-    function sendSSE($type, $message)
-    {
-        echo "data:" . $type . "|" . str_replace("\n", "\\n", $message) . "\n\n";
-        flush();
-    }
-
-    sendSSE("STATUS", "Starting Bulk Regional Patch Process for Set ID: " . $set_id . " using Language: " . $language);
-
-    // Use the selected region if provided; otherwise, process all regions.
-    if (!empty($selectedRegion)) {
-        $regions = array($selectedRegion);
+    // If a single region is provided via GET, use it; otherwise process all.
+    if (isset($_GET['region']) && trim($_GET['region']) !== '') {
+        $regions = array(trim($_GET['region']));
     } else {
+        // First group: always active regions
         $regions = array(
             "us-east-1",
             "us-east-2",
@@ -111,6 +83,7 @@ if (isset($_GET['stream'])) {
             "eu-west-2",
             "eu-west-3",
             "eu-north-1",
+            // Second group: conditional regions (may be disabled initially)
             "me-central-1",
             "sa-east-1",
             "af-south-1",
@@ -130,7 +103,44 @@ if (isset($_GET['stream'])) {
     $totalSuccess = 0;
     $usedRegions = 0;
 
-    $internal_call = true;
+    // Prepare stop file and SSE headers
+    $stopFile = "stop_" . $id . ".txt";
+    if (file_exists($stopFile)) {
+        unlink($stopFile);
+    }
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    while (ob_get_level()) {
+        ob_end_flush();
+    }
+    set_time_limit(0);
+    ignore_user_abort(true);
+
+    function sendSSE($type, $message)
+    {
+        echo "data:" . $type . "|" . str_replace("\n", "\\n", $message) . "\n\n";
+        flush();
+    }
+
+    sendSSE("STATUS", "Starting Bulk Regional Patch Process for Set ID: $set_id using Language: $language");
+
+    // Define conditional regions list
+    $conditional = array(
+        "me-central-1",
+        "sa-east-1",
+        "af-south-1",
+        "ap-southeast-3",
+        "ap-southeast-4",
+        "ca-west-1",
+        "eu-south-1",
+        "eu-south-2",
+        "eu-central-2",
+        "me-south-1",
+        "il-central-1",
+        "ap-south-2"
+    );
+
+    // Include helper for fetching numbers
     require_once('region_ajax_handler.php');
 
     foreach ($regions as $region) {
@@ -141,40 +151,60 @@ if (isset($_GET['stream'])) {
             exit;
         }
 
+        // For conditional regions, wait until enabled
+        if (in_array($region, $conditional)) {
+            do {
+                // Call internal enable check via HTTP
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, "http://{$_SERVER['HTTP_HOST']}/region_enable_handler.php?ac_id=$id&user_id=$user_id");
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['action' => 'check_region_status', 'region' => $region]));
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                $resp = curl_exec($ch);
+                curl_close($ch);
+                $statusData = json_decode($resp, true);
+                $stat = $statusData['success'] && isset($statusData['status']) ? $statusData['status'] : 'DISABLED';
+                if ($stat === 'ENABLED') {
+                    break;
+                }
+                sendSSE("STATUS", "Waiting for region $region to be enabled...");
+                sleep(30);
+            } while (true);
+            sendSSE("STATUS", "Region $region enabled. Proceeding...");
+        }
+
+        // Begin region processing
         $usedRegions++;
-        sendSSE("STATUS", "Moving to region: " . $region);
+        sendSSE("STATUS", "Moving to region: $region");
         sendSSE("COUNTERS", "Total Patch sent: $totalSuccess; In region: $region; Regions processed: $usedRegions; Remaining: " . ($totalRegions - $usedRegions));
 
         // Fetch allowed numbers using provided user_id and set_id.
         $numbersResult = fetch_numbers($region, $user_id, $pdo, $set_id);
         if (isset($numbersResult['error'])) {
-            sendSSE("STATUS", "Error fetching numbers for region " . $region . ": " . $numbersResult['error']);
+            sendSSE("STATUS", "Error fetching numbers for region $region: " . $numbersResult['error']);
             sleep(5);
             continue;
         }
         $allowedNumbers = $numbersResult['data'];
         if (empty($allowedNumbers)) {
-            sendSSE("STATUS", "No allowed numbers found in region: " . $region);
+            sendSSE("STATUS", "No allowed numbers found in region: $region");
             sleep(5);
             continue;
         }
 
-        // Build Patch tasks.
-        // If there are at least 6 allowed numbers, then process the first 5 normally,
-        // and for the 6th number, try sending the patch 2 times.
-        $otpTasks = array();
-        $numbersCount = count($allowedNumbers);
-        if ($numbersCount >= 6) {
+        // Build Patch tasks
+        $otpTasks = [];
+        $count = count($allowedNumbers);
+        if ($count >= 6) {
             for ($i = 0; $i < 5; $i++) {
-                $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
+                $otpTasks[] = ['id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']];
             }
-            // For the 6th number, attempt twice.
-            $otpTasks[] = array('id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']);
-            $otpTasks[] = array('id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']);
+            // 6th twice
+            $otpTasks[] = ['id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']];
+            $otpTasks[] = ['id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']];
         } else {
-            // Process fewer than 6 numbers normally.
-            foreach ($allowedNumbers as $number) {
-                $otpTasks[] = array('id' => $number['id'], 'phone' => $number['phone_number']);
+            foreach ($allowedNumbers as $n) {
+                $otpTasks[] = ['id' => $n['id'], 'phone' => $n['phone_number']];
             }
         }
 
@@ -182,51 +212,45 @@ if (isset($_GET['stream'])) {
         $verifDestError = false;
 
         foreach ($otpTasks as $task) {
-            // Check stop flag in inner loop.
             if (file_exists($stopFile)) {
                 sendSSE("STATUS", "Process stopped by user.");
                 unlink($stopFile);
                 exit;
             }
-
             sendSSE("STATUS", "[$region] Sending Patch...");
             $sns = initSNS($aws_key, $aws_secret, $region);
             if (is_array($sns) && isset($sns['error'])) {
-                sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Failed: " . $sns['error']);
+                sendSSE("ROW", "{$task['id']}|{$task['phone']}|$region|Patch Failed: {$sns['error']}");
                 continue;
             }
-            // Pass language along to OTP sender.
             $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns, $language);
             if ($result['status'] === 'success') {
-                sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Sent");
+                sendSSE("ROW", "{$task['id']}|{$task['phone']}|$region|Patch Sent");
                 $totalSuccess++;
                 $otpSentInThisRegion = true;
                 sendSSE("COUNTERS", "Total Patch sent: $totalSuccess; In region: $region; Regions processed: $usedRegions; Remaining: " . ($totalRegions - $usedRegions));
                 sleep(2);
-                // usleep(500000);
-            } else if ($result['status'] === 'skip') {
-                sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Skipped: " . $result['message']);
-            } else if ($result['status'] === 'error') {
-                sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Failed: " . $result['message']);
+            } elseif ($result['status'] === 'skip') {
+                sendSSE("ROW", "{$task['id']}|{$task['phone']}|$region|Patch Skipped: {$result['message']}");
+            } else {
+                sendSSE("ROW", "{$task['id']}|{$task['phone']}|$region|Patch Failed: {$result['message']}");
                 if (strpos($result['message'], "VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT") !== false) {
                     $verifDestError = true;
                     sendSSE("STATUS", "[$region] VERIFIED_DESTINATION_NUMBERS_PER_ACCOUNT error encountered. Skipping region.");
                     break;
-                } else if (
-                    strpos($result['message'], "Access Denied") !== false ||
-                    strpos($result['message'], "Region Restricted") !== false
-                ) {
-                    sendSSE("STATUS", "[$region] Critical error (" . $result['message'] . "). Skipping region.");
+                } elseif (strpos($result['message'], "Access Denied") !== false || strpos($result['message'], "Region Restricted") !== false) {
+                    sendSSE("STATUS", "[$region] Critical error ({$result['message']}). Skipping region.");
                     break;
                 } else {
                     sleep(5);
                 }
             }
         }
+
         if ($verifDestError) {
             sendSSE("STATUS", "Region $region encountered an error. Waiting 5 seconds...");
             sleep(5);
-        } else if ($otpSentInThisRegion) {
+        } elseif ($otpSentInThisRegion) {
             sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 20 seconds...");
             sleep(20);
         } else {
