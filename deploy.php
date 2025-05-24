@@ -1,16 +1,51 @@
 <?php
+
+$repoDir = '/var/www/html';
+$repoUrl = 'https://github.com/withalihassan/sender.git';
+$branch = 'main';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $output = [];
-    $return_var = 0;
+    $returnVar = 0;
 
-    exec('/bin/bash /var/www/html/deploy.sh 2>&1', $output, $return_var);
+    // Change to repo directory
+    if (!chdir($repoDir)) {
+        http_response_code(500);
+        echo "Cannot access $repoDir";
+        exit;
+    }
 
-    if ($return_var === 0) {
-        echo "Deploy script ran successfully:\n" . implode("\n", $output);
+    // Mark directory as safe for git
+    exec("git config --global --add safe.directory '$repoDir'");
+
+    // Check if .git exists
+    if (!is_dir("$repoDir/.git")) {
+        // Not a git repo - initialize and clone
+        exec("git init", $output, $returnVar);
+        exec("git remote add origin '$repoUrl'", $output, $returnVar);
+        exec("git fetch origin '$branch'", $output, $returnVar);
+        exec("git checkout -t origin/$branch", $output, $returnVar);
+    } else {
+        // Git repo exists - pull latest changes
+        exec("git pull origin '$branch'", $output, $returnVar);
+    }
+
+    // Log the git status to deploy.txt
+    $statusOutput = [];
+    exec("git status", $statusOutput);
+    $logEntry = "---- Deployment executed on " . date('Y-m-d H:i:s') . " ----\n" .
+                implode("\n", $statusOutput) . "\n" .
+                "-------------------------------------------\n";
+
+    file_put_contents("$repoDir/deploy.txt", $logEntry, FILE_APPEND);
+
+    if ($returnVar === 0) {
+        echo "Deployment successful.\n\n";
+        echo implode("\n", $output);
     } else {
         http_response_code(500);
-        echo "Error running deploy script:\n" . implode("\n", $output);
+        echo "Deployment failed.\n\n";
+        echo implode("\n", $output);
     }
-    exit;
 }
 ?>
