@@ -54,6 +54,7 @@ if (isset($_POST['submit'])) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Home - Claim and Start Process</title>
@@ -63,50 +64,26 @@ if (isset($_POST['submit'])) {
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.css">
     <style>
         /* Optional: Adjust spacing for inline quick action buttons */
-        .d-inline-flex > * + * {
+        .d-inline-flex>*+* {
             margin-left: 0.5rem;
         }
     </style>
 </head>
+
 <body>
-
-<?php
-    // session_start();
-    // include 'db.php'; // Your existing connection file
-
-    // Get current user's ID from the session.
-    $user_id = $_SESSION['user_id'];
-
-    // Prepare and execute the query using PDO.
-    $sql = "SELECT i.public_ip, i.elastic_ip 
-        FROM instances i
-        JOIN accounts a ON a.id = i.account_id
-        WHERE a.by_user = :user_id
-        ORDER BY i.launch_time DESC 
-        LIMIT 12";
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute(['user_id' => $user_id]);
-    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    ?>
     <div class="container-fluid" style="padding: 1% 4% 0 4%;">
-        <h2>
-            Try Alternate IP Defense
-            <span class="badge bg-success bg-opacity-75 ms-2 px-2 py-1 small rounded-pill text-white">Secure</span>
-        </h2>
-        <!-- Inline buttons with small spacing -->
-        <div class="btn-group" role="group" aria-label="IP Buttons">
-            <?php foreach ($results as $row):
-                // Use elastic_ip if available, otherwise fall back to public_ip
-                $ip = !empty($row['elastic_ip']) ? $row['elastic_ip'] : $row['public_ip'];
-                if ($ip): ?>
-                    <a href="http://<?php echo htmlspecialchars($ip); ?>" target="_blank" class="btn btn-primary btn-sm mx-1">
-                        <?php echo htmlspecialchars($ip); ?>
-                    </a>
-            <?php endif;
-            endforeach; ?>
-        </div>
+        <button onclick="runDeploy()" class="btn btn-primary">Pull Changes</button>
     </div>
+    <script>
+        function runDeploy() {
+            fetch('deploy.php', {
+                    method: 'POST'
+                })
+                .then(response => response.text())
+                .then(data => alert(data))
+                .catch(error => alert("Error: " + error));
+        }
+    </script>
     <div class="container-fluid" style="padding: 1% 4% 4% 4%;">
         <!-- Table Section 1: Accounts List -->
         <div class="table-section mb-5">
@@ -323,138 +300,151 @@ if (isset($_POST['submit'])) {
             </table>
         </div>
     </div>
-<!-- jQuery, DataTables, Popper.js and Bootstrap JS -->
-<script src="https://code.jquery.com/jquery-3.5.1.js"></script>
-<script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
-<script>
-$(document).ready(function() {
-    $('#accountsTable1').DataTable();
-    $('#accountsTable2').DataTable();
-    $('#manualSuspendedTable').DataTable();
-});
+    <!-- jQuery, DataTables, Popper.js and Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#accountsTable1').DataTable();
+            $('#accountsTable2').DataTable();
+            $('#manualSuspendedTable').DataTable();
+        });
 
-// Global Sync Remote Records handler
-$(document).on('click', '#syncBtn', function(e) {
-    e.preventDefault();
-    $('#syncResult').html("<span class='text-info'>Syncing records...</span>");
-    $.ajax({
-        url: 'sync_remote.php',
-        type: 'POST',
-        dataType: 'json',
-        success: function(response) {
-            if(response.success) {
-                $('#syncResult').html("<span class='text-success'>"+response.new_records+" new record(s) fetched.</span>");
-                // Optionally, you could update your tables dynamically here.
-            } else {
-                $('#syncResult').html("<span class='text-danger'>"+response.message+"</span>");
-            }
-        },
-        error: function() {
-            $('#syncResult').html("<span class='text-danger'>An error occurred while syncing records.</span>");
-        }
-    });
-});
+        // Global Sync Remote Records handler
+        $(document).on('click', '#syncBtn', function(e) {
+            e.preventDefault();
+            $('#syncResult').html("<span class='text-info'>Syncing records...</span>");
+            $.ajax({
+                url: 'sync_remote.php',
+                type: 'POST',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        $('#syncResult').html("<span class='text-success'>" + response.new_records + " new record(s) fetched.</span>");
+                        // Optionally, you could update your tables dynamically here.
+                    } else {
+                        $('#syncResult').html("<span class='text-danger'>" + response.message + "</span>");
+                    }
+                },
+                error: function() {
+                    $('#syncResult').html("<span class='text-danger'>An error occurred while syncing records.</span>");
+                }
+            });
+        });
 
-// Check Status button handler for all tables
-$(document).on('click', '.check-status-btn', function(e) {
-    e.preventDefault();
-    var btn = $(this);
-    var accountId = btn.data('id');
-    var row = btn.closest('tr');
-    var tableSection = btn.closest('.table-section');
-    var statusDiv = tableSection.find('.status-message');
-    statusDiv.html("<span class='text-info'>Checking status...</span>");
-    $.ajax({
-        url: './provider/scripts/check_status.php',
-        type: 'POST',
-        data: { id: accountId },
-        success: function(response) {
-            statusDiv.html("<span class='text-success'>" + response + "</span>");
-            // Update the status cell (4th column) based on response content
-            if(response.toLowerCase().indexOf("active") !== -1) {
-                row.find('td:eq(3)').html("<span class='badge badge-success'>Active</span>");
-            } else if(response.toLowerCase().indexOf("suspended") !== -1) {
-                row.find('td:eq(3)').html("<span class='badge badge-danger'>Suspended</span>");
-            }
-        },
-        error: function() {
-            statusDiv.html("<span class='text-danger'>An error occurred while checking the account status.</span>");
-        }
-    });
-});
+        // Check Status button handler for all tables
+        $(document).on('click', '.check-status-btn', function(e) {
+            e.preventDefault();
+            var btn = $(this);
+            var accountId = btn.data('id');
+            var row = btn.closest('tr');
+            var tableSection = btn.closest('.table-section');
+            var statusDiv = tableSection.find('.status-message');
+            statusDiv.html("<span class='text-info'>Checking status...</span>");
+            $.ajax({
+                url: './provider/scripts/check_status.php',
+                type: 'POST',
+                data: {
+                    id: accountId
+                },
+                success: function(response) {
+                    statusDiv.html("<span class='text-success'>" + response + "</span>");
+                    // Update the status cell (4th column) based on response content
+                    if (response.toLowerCase().indexOf("active") !== -1) {
+                        row.find('td:eq(3)').html("<span class='badge badge-success'>Active</span>");
+                    } else if (response.toLowerCase().indexOf("suspended") !== -1) {
+                        row.find('td:eq(3)').html("<span class='badge badge-danger'>Suspended</span>");
+                    }
+                },
+                error: function() {
+                    statusDiv.html("<span class='text-danger'>An error occurred while checking the account status.</span>");
+                }
+            });
+        });
 
-// Additional event handlers (mark-full, mark-half, delete, reject) can remain similar to your original code:
-$(document).on('click', '.mark-full-btn', function(e) {
-    e.preventDefault();
-    var accountId = $(this).data("id");
-    $.ajax({
-        url: "claim_account.php",
-        type: "POST",
-        data: { id: accountId, claim_type: 'full' },
-        success: function(response) {
-            // You can display the response in the table section status div if needed.
-            alert(response);
-        },
-        error: function() {
-            alert("An error occurred while marking the account as full.");
-        }
-    });
-});
+        // Additional event handlers (mark-full, mark-half, delete, reject) can remain similar to your original code:
+        $(document).on('click', '.mark-full-btn', function(e) {
+            e.preventDefault();
+            var accountId = $(this).data("id");
+            $.ajax({
+                url: "claim_account.php",
+                type: "POST",
+                data: {
+                    id: accountId,
+                    claim_type: 'full'
+                },
+                success: function(response) {
+                    // You can display the response in the table section status div if needed.
+                    alert(response);
+                },
+                error: function() {
+                    alert("An error occurred while marking the account as full.");
+                }
+            });
+        });
 
-$(document).on('click', '.mark-half-btn', function(e) {
-    e.preventDefault();
-    var accountId = $(this).data("id");
-    $.ajax({
-        url: "claim_account.php",
-        type: "POST",
-        data: { id: accountId, claim_type: 'half' },
-        success: function(response) {
-            alert(response);
-        },
-        error: function() {
-            alert("An error occurred while marking the account as half.");
-        }
-    });
-});
+        $(document).on('click', '.mark-half-btn', function(e) {
+            e.preventDefault();
+            var accountId = $(this).data("id");
+            $.ajax({
+                url: "claim_account.php",
+                type: "POST",
+                data: {
+                    id: accountId,
+                    claim_type: 'half'
+                },
+                success: function(response) {
+                    alert(response);
+                },
+                error: function() {
+                    alert("An error occurred while marking the account as half.");
+                }
+            });
+        });
 
-$(document).on('click', '.delete-btn', function() {
-    if (confirm("Are you sure you want to delete this account?")) {
-        var id = $(this).data('id');
-        $.ajax({
-            url: './scripts/delete_account.php',
-            type: 'POST',
-            data: { id: id },
-            success: function(response) {
-                alert(response);
-                location.reload();
-            },
-            error: function() {
-                alert("An error occurred while deleting the account.");
+        $(document).on('click', '.delete-btn', function() {
+            if (confirm("Are you sure you want to delete this account?")) {
+                var id = $(this).data('id');
+                $.ajax({
+                    url: './scripts/delete_account.php',
+                    type: 'POST',
+                    data: {
+                        id: id
+                    },
+                    success: function(response) {
+                        alert(response);
+                        location.reload();
+                    },
+                    error: function() {
+                        alert("An error occurred while deleting the account.");
+                    }
+                });
             }
         });
-    }
-});
-        
-$(document).on('click', '.reject-btn', function(e) {
-    e.preventDefault();
-    if (confirm("Are you sure you want to reject this account?")) {
-        var accountId = $(this).data('id');
-        $.ajax({
-            url: 'reject_account.php',
-            type: 'POST',
-            data: { id: accountId },
-            success: function(response) {
-                alert(response);
-                location.reload();
-            },
-            error: function() {
-                alert("An error occurred while rejecting the account.");
+
+        $(document).on('click', '.reject-btn', function(e) {
+            e.preventDefault();
+            if (confirm("Are you sure you want to reject this account?")) {
+                var accountId = $(this).data('id');
+                $.ajax({
+                    url: 'reject_account.php',
+                    type: 'POST',
+                    data: {
+                        id: accountId
+                    },
+                    success: function(response) {
+                        alert(response);
+                        location.reload();
+                    },
+                    error: function() {
+                        alert("An error occurred while rejecting the account.");
+                    }
+                });
             }
         });
-    }
-});
-</script>
+    </script>
 </body>
+
 </html>
