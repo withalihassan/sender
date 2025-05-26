@@ -183,7 +183,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_region' && isset($_GET
 
 <body>
     <div class="container">
-        <h1>Contact Cleanup</h1>
+        <h1> <?php echo $_GET["ac_id"]; ?> Contact Cleanup</h1>
         <?php
         // Ensure the account ID is provided via query parameter.
         $ac_id = isset($_GET['ac_id']) ? intval($_GET['ac_id']) : 0;
