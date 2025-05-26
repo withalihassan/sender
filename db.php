@@ -5,13 +5,14 @@
 if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '3.29.18.8') {
     // When accessed via http://47.251.28.20, use 'localhost' for the DB connection.
     $host = 'localhost';
+    $username = 'root';
 } else {
     // Otherwise, use the remote IP address.
     $host = '3.29.18.8';
+    $username = 'remoteuser';
 }
 
 $dbname   = 'sp_sender';
-$username = 'remoteuser';
 $password = 'Tech@#009';
 
 try {

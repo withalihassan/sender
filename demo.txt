@@ -26,6 +26,7 @@ mysql -u root -p -h 3.29.18.8
 CREATE USER 'remoteuser'@'%' IDENTIFIED BY 'your_password';
 GRANT ALL PRIVILEGES ON *.* TO 'remoteuser'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
+SELECT user, host FROM mysql.user;
 
 
 Q0Dit9TkNWWaAQBgfQnf
