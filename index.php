@@ -57,7 +57,7 @@ if (isset($_POST['submit'])) {
 
 <head>
     <meta charset="UTF-8">
-    <title>Home - Special Panel</title>
+    <title>Home - Special Accounts Panel</title>
     <!-- Bootstrap CSS for styling -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
     <!-- DataTables CSS for pagination -->
