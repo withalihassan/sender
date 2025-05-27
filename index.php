@@ -72,7 +72,7 @@ if (isset($_POST['submit'])) {
 
 <body>
     <div class="container-fluid" style="padding: 1% 4% 0 4%;">
-        <button onclick="runDeploy()" class="btn btn-primary">Pull Ne Changes</button>
+        <button onclick="runDeploy()" class="btn btn-primary">Pull Changes</button>
     </div>
     <script>
         function runDeploy() {
