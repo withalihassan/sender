@@ -2,13 +2,13 @@
 // db.php
 
 // Determine the database host based on the URL used to access the site.
-if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '3.29.18.8') {
-    // When accessed via http://47.251.28.20, use 'localhost' for the DB connection.
+if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '98.83.29.45') {
+    // When accessed via http://98.83.29.45, use 'localhost' for the DB connection.
     $host = 'localhost';
     $username = 'root';
 } else {
     // Otherwise, use the remote IP address.
-    $host = '3.29.18.8';
+    $host = '98.83.29.45';
     $username = 'remoteuser';
 }
 
