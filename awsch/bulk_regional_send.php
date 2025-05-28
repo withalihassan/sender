@@ -646,8 +646,10 @@ if (isset($_GET['stream'])) {
   </script>
     <script>
         $(function() {
-            const acId = <?php echo $id; ?>;
+            const acId = "<?php echo htmlspecialchars($id, ENT_QUOTES); ?>";
             const userId = <?php echo $parent_id; ?>;
+            console.log("acId:", acId);
+      console.log("userId:", userId);
             const regions = [
                 "me-central-1", "af-south-1",
                 "ap-southeast-3", "ap-southeast-4", "ca-west-1",
