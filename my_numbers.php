@@ -332,11 +332,7 @@ $currentDateTime = date("l, F j, Y, g:i A");
       </div>
     </div>
     <div class="container mt-4">
-      <?php if ($message): ?>
-        <div class="alert alert-info" role="alert">
-          <?php echo htmlspecialchars($message); ?>
-        </div>
-      <?php endif; ?>
+      
 
       <form class="form-inline" method="post" action="<?php echo htmlspecialchars($_SERVER['PHP_SELF'] . '?id=' . $id); ?>">
         <input type="hidden" name="id" value="<?php echo $id; ?>">
