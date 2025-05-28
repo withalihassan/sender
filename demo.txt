@@ -6,7 +6,7 @@ FLUSH PRIVILEGES;
 
 mysql -u remoteuser -p -h 18.206.99.184
 
-
+ mysqldump -u remoteuser -p -h 18.206.99.184 sp_sender > sp_sender.sql
 CHANGE MASTER TO
   MASTER_HOST='18.206.99.184',
   MASTER_USER='remoteuser',
