@@ -48,7 +48,10 @@ $account_id = intval($_GET['id']);
         <div class="form-group mb-2 mr-3">
             <label for="region" class="mr-2">Select Region:</label>
             <select name="region" id="region" class="form-control">
-                <option value="us-west-2">Oregon (us-west-2)</option>
+                <option value="us-east-2">Ohio (us-east-2)</option>
+                <option value="us-west-1">California (us-west-1)</option>
+                <option value="ap-south-1">Mumbai (ap-south-1)</option>
+                <option value="us-west-2" disabled>Oregon (us-west-2)</option>
                 <!-- Additional regions can be added here -->
             </select>
         </div>
