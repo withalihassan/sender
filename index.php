@@ -109,7 +109,7 @@ if (isset($_POST['submit'])) {
                 <tbody>
                     <?php
                     // Table 1 query: Accounts List
-                    $stmt = $pdo->query("SELECT * FROM accounts WHERE status='active' AND ac_worth='special' AND  by_user='$session_id' ORDER BY 1 DESC");
+                    $stmt = $pdo->query("SELECT * FROM accounts WHERE status='active' AND ac_worth='special' AND  by_user='$session_id'  AND last_user IS NULL ORDER BY 1 DESC");
                     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         echo "<tr>";
                         echo "<td>" . $row['id'] . "</td>";
