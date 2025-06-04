@@ -77,7 +77,7 @@ if (isset($_POST['submit'])) {
     <div class="container-fluid" style="padding: 1% 4% 4% 4%;">
         <!-- Table Section 1: Accounts List -->
         <div class="table-section mb-5">
-            <h2>IAM Accounts List</h2>
+            <h2>IAM Accounts Lists</h2>
             <!-- Div for check status messages -->
             <div class="status-message-iam mb-2"></div>
             <table id="accountsTable3" class="display table table-bordered">
@@ -96,7 +96,7 @@ if (isset($_POST['submit'])) {
                 </thead>
                 <tbody>
                     <?php
-                    $stmt_iam = $pdo->query("SELECT * FROM iam_users WHERE by_user='$session_id' AND added_by='boys' ORDER BY created_at");
+                    $stmt_iam = $pdo->query("SELECT * FROM iam_users WHERE by_user='$session_id' AND added_by='boys' ORDER BY created_at DESC");
                     while ($row_iam_users = $stmt_iam->fetch(PDO::FETCH_ASSOC)) {
                         // Update by_user for this iam_users record
                         // $iam_user_id = $row_iam_users['id'];
