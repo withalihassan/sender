@@ -57,7 +57,7 @@ if (isset($_POST['submit'])) {
             $checkStmt->execute([$account_id]);
             $count = $checkStmt->fetchColumn();
 
-            if ($count > 0) {
+            if ($count > 1) {
                 $message = "Error: Duplicate Account or this account already exists.";
             } else {
                 // Set current time in Pakistan timezone
