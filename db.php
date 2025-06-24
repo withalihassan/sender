@@ -8,12 +8,12 @@ if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '98.83.29.45') {
     $username = 'root';
 } else {
     // Otherwise, use the remote IP address.
-    $host = '98.83.29.45';
-    $username = 'remoteuser';
+    $host = 'database-1.ct22ws4u0c7g.me-central-1.rds.amazonaws.com';
+    $username = 'admin';
 }
 
 $dbname   = 'sp_sender';
-$password = 'Tech@#009';
+$password = 'sLoGMCVfEo4TpMGOEm18';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
