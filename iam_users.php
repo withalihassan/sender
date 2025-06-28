@@ -149,8 +149,8 @@ if (isset($_POST['submit'])) {
                                             <a href='./iam_clear.php?ac_id={$row_iam_users['id']}' target='_blank'>
                                             <button class='btn btn-danger btn-sm mr-1'>Clear</button>
                                             </a>
-                                            <a href='./awsch/child_actions.php?ac_id=" . urlencode($row_iam_users['child_account_id']) .
-                            "&parent_id=" . urlencode($parent_id) . "&user_id=" . urlencode($session_id) .
+                                            <a href='./awsch/child_actions.php?ac_id=" .$row_iam_users['child_account_id'].
+                            "&parent_id=" .$parent_id. "&user_id=" .$session_id.
                             "' target='_blank'>
                                             <button class='btn btn-success btn-sm mr-1'>Open</button>
                                             </a>
