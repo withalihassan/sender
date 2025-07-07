@@ -122,7 +122,7 @@ try {
             <div class="col-md-3">
                 <button
                     class="btn btn-primary btn-custom"
-                    onclick="checkQuota()">Check Quota of EC2</button>
+                    onclick="checkQuota()">Check Quota</button>
             </div>
 
             <div class="col-md-2">
@@ -131,19 +131,6 @@ try {
                 <button
                     class="btn btn-secondary btn-custom"
                     onclick="checkAccountStatus()">Account Status</button>
-            </div>
-
-            <div class="col-md-2">
-                <button id="leaveBtn"
-                    class="btn btn-warning btn-custom"
-                    onclick="leaveOrganization()">
-                    Run the Script
-                </button>
-            </div>
-            <div class="col-md-2">
-                <button class="btn btn-warning btn-custom" onclick="checkMembership()">
-                    Check Script Status
-                </button>
             </div>
 
 
@@ -221,15 +208,6 @@ try {
         <?php
         endif;
         ?>
-        <div class="col-md-4 mb-3">
-            <label class="form-label">Details Entry Link</label>
-            <div class="input-group">
-                <input type="text"
-                    class="form-control"
-                    readonly
-                    value="https://portal.aws.amazon.com/billing/signup/iam?enforcePI=True&redirect_url=https%3A%2F%2Faws.amazon.com%2Fregistration-confirmation#/paymentinformation">
-            </div>
-        </div>
     </div>
 
     <script>
