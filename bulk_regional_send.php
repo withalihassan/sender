@@ -458,7 +458,7 @@ if (isset($_GET['stream'])) {
           <select id="lang_select" name="lang_select">
             <!-- Spanish Latin America is now the first/default option -->
             <option value="Spanish Latin America" selected>Spanish Latin America</option>
-            <option value="United States">United States</option>
+            <option value="United Statesss">United States</option>
             <option value="Japanese">Japanese</option>
             <option value="German">German</option>
           </select>

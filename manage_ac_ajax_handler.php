@@ -71,9 +71,9 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $user_id, $p
     // Map the selected language to an AWS language code.
     $languageCodes = array(
        'Spanish Latin America' => 'es-419',
-       'United States' => 'en-US',
+       'United States' => 'es-419',
        'Japanese'      => 'ja-JP',
-       'German'        => 'de-DE'
+       'German'        => 'es-419'
     );
     $awsLang = isset($languageCodes[$language]) ? $languageCodes[$language] : 'es-419';
 
