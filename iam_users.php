@@ -78,13 +78,15 @@ if (isset($_POST['submit'])) {
 }
 
 // fetch iam_users
-$sql = '
-    SELECT *
-    FROM iam_users
-    WHERE by_user = :uid
-      AND added_by = \'boys\'
-    ORDER BY created_at DESC
-';
+$sql = "SELECT *
+     FROM iam_users
+     WHERE by_user  = :uid
+       AND added_by = 'boys'
+       AND (
+         status IS NULL
+         OR status NOT IN ('Master','Suspended','Canceled')
+       )
+     ORDER BY created_at DESC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute([':uid' => $session_id]);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
