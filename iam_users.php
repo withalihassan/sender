@@ -196,10 +196,7 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <a href="./iam_clear.php?ac_id=<?= $id ?>" target="_blank">
               <button class="btn btn-danger btn-sm mr-1">Clear</button>
             </a>
-            <a href="./awsch/child_actions.php?
-                     ac_id=<?= $childId ?>&
-                     parent_id=<?= $info['parent_id'] ?? '' ?>&
-                     user_id=<?= $session_id ?>"
+            <a href="./awsch/child_actions.php?ac_id=<?= $childId ?>&parent_id=<?= $info['parent_id'] ?? '' ?>&user_id=<?= $session_id ?>"
                target="_blank">
               <button class="btn btn-success btn-sm mr-1">Open</button>
             </a>
