@@ -2,47 +2,98 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-require '../../db.php'; // This file defines $pdo
-require '../../session.php'; // This file defines $pdo
 
-if (isset($_GET['parent_id'])) {
-    $parentId = $_GET['parent_id'];
-    // $user_id = $_GET['user_id'];
+require '../../db.php';      // provides $pdo
+require '../../session.php'; // starts session, provides $_SESSION
 
-    $stmt = $pdo->prepare("SELECT * FROM child_accounts WHERE parent_id = ? AND account_id != ?");
-    $stmt->execute([$parentId, $parentId]);
-    $accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    if (count($accounts) > 0) {
-        foreach ($accounts as $index => $account) {
-            // Determine status badge based on account status
-            $statusBadge = ($account['status'] === 'ACTIVE')
-                ? "<span class='badge bg-success'>Active</span>"
-                : "<span class='badge bg-danger'>Suspended</span>";
-
-            // Construct table row with escaped output and URL-encoded query parameters
-            echo "<tr>
-                    <td>" . ($index + 1) . "</td>
-                    <td>" . htmlspecialchars($account['name']) . "</td>
-                    <td>" . htmlspecialchars($account['email']) . "</td>
-                    <td>$statusBadge</td>
-                    <td>" . $account['worth_type']. "</td>
-                    <td>" . htmlspecialchars($account['account_id']) . "</td>
-                    <td>
-                        <a href='./bulk_regional_send.php?ac_id=" . $account['account_id'] . "&parrent_id=" . $parentId . "' target='_blank' class='btn btn-success'>Bulk Regional Send</a>
-                        <a href='./brs.php?ac_id=" . $account['account_id'] . "&parrent_id=" . $parentId . "' target='_blank' class='btn btn-info'>BRS</a>
-                        <a href='./enable_regions.php?ac_id=" . $account['account_id'] . "&parrent_id=" . $parentId . "' target='_blank' class='btn btn-secondary'>E-R</a>
-                        <a href='./clear_single.php?ac_id=" . $account['account_id'] . "&parrent_id=" . $parentId . "' target='_blank' class='btn btn-warning'>Clear</a>
-                        <a target='_blank' href='child_account.php?child_id=" . urlencode($account['account_id']) . "&parent_id=" . urlencode($parentId) . "' class='btn btn-primary'>Setup</a>
-                        <a target='_blank' href='./chk_quality.php?ac_id=" . urlencode($account['account_id']) . "&parent_id=" . urlencode($parentId) . "' class='btn btn-warning'>CHK-Q</a>
-                        <a target='_blank' href='./chk_child_status.php?ac_id=" . urlencode($account['account_id']) . "&parent_id=" . urlencode($parentId) . "&user_id=" . urlencode($session_id) . "' class='btn btn-success'>Open</a>
-                    </td>
-                  </tr>";
-        }
-    } else {
-        echo "<tr><td colspan='6' class='text-center'>No child accounts found.</td></tr>";
-    }
-} else {
-    echo "<tr><td colspan='6' class='text-center'>Parent ID is missing.</td></tr>";
+// ensure user is logged in
+if (empty($_SESSION['user_id'])) {
+    die('User not logged in.');
 }
-?>
+$sessionId = $_SESSION['user_id'];
+
+// ensure parent_id is provided
+if (empty($_GET['parent_id'])) {
+    echo "<tr><td colspan='9' class='text-center'>Parent ID is missing.</td></tr>";
+    exit;
+}
+$parentId = $_GET['parent_id'];
+
+// fetch all child accounts for this parent (excluding self)
+$sql = "
+    SELECT *
+      FROM child_accounts
+     WHERE parent_id   = :pid
+       AND account_id != :pid
+";
+$stmt = $pdo->prepare($sql);
+$stmt->execute([':pid' => $parentId]);
+$accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// if none, show message
+if (empty($accounts)) {
+    echo "<tr><td colspan='9' class='text-center'>No child accounts found.</td></tr>";
+    exit;
+}
+
+// loop and output rows
+foreach ($accounts as $i => $acct) {
+    // Status badge
+    switch (strtoupper($acct['status'] ?? '')) {
+        case 'ACTIVE':
+            $statusBadge = "<span class='badge bg-success'>Active</span>";
+            break;
+        case 'SUSPENDED':
+            $statusBadge = "<span class='badge bg-danger'>Suspended</span>";
+            break;
+        default:
+            $statusBadge = "<span class='badge bg-secondary'>Unknown</span>";
+            break;
+    }
+
+    // compute age in days (0 if no date)
+    if (!empty($acct['added_date'])) {
+        $added = new DateTime($acct['added_date']);
+        $now   = new DateTime();
+        $days  = (int)$added->diff($now)->format('%a');
+    } else {
+        $days = 0;
+    }
+
+    // Age column badge
+    if (empty($acct['added_date'])) {
+        // status is NULL or empty
+        $ageBadge = "<span class='badge bg-primary'>Fetch me</span>";
+    } elseif($acct['status']=='SUSPENDED'){
+         $ageBadge = "<span class='badge bg-light'>❌</span>";
+    } elseif ($days >= 6) {
+        $ageBadge = "<span class='badge bg-success'>✅ Ready</span>";
+    }  else {
+        $ageBadge = "<span class='badge bg-warning text-dark'>⏳ Pending</span>";
+    }
+
+    // highlight row if not in org
+    $rowStyle = ($acct['is_in_org'] === 'No')
+        ? "style='background-color: #ffcccc;'"
+        : "";
+
+    // print the row
+    echo "<tr>";
+    echo "  <td $rowStyle>" . ($i + 1) . "</td>";
+    echo "  <td>" . htmlspecialchars($acct['name'])         . "</td>";
+    echo "  <td>" . htmlspecialchars($acct['email'])        . "</td>";
+    echo "  <td>{$statusBadge}</td>";
+    echo "  <td>" . htmlspecialchars($acct['worth_type'])   . "</td>";
+    echo "  <td>{$ageBadge}</td>";
+    echo "  <td>" . htmlspecialchars($acct['account_id'])   . "</td>";
+    echo "  <td>
+            <a href='./bulk_regional_send.php?ac_id=" . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-success btn-sm'>Bulk Regional Send</a>
+            <a href='./brs.php?ac_id="               . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-info btn-sm'>BRS</a>
+            <a href='./enable_regions.php?ac_id="    . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-secondary btn-sm'>E-R</a>
+            <a href='./clear_single.php?ac_id="      . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-warning btn-sm'>Clear</a>
+            <a href='child_account.php?child_id="    . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-primary btn-sm'>Setup</a>
+            <a href='./chk_quality.php?ac_id="       . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-warning btn-sm'>CHK-Q</a>
+            <a href='./child_actions.php?ac_id="     . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "&user_id=" . urlencode($sessionId) . "' target='_blank' class='btn btn-success btn-sm'>Open</a>
+          </td>";
+    echo "</tr>";
+}

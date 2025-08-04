@@ -107,7 +107,7 @@ try {
         </div>
 
         <div class="row g-3 mb-3">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <input type="hidden" id="aws_access_key" value="<?php echo $aws_access_key; ?>">
                 <input type="hidden" id="aws_secret_key" value="<?php echo $aws_secret_key; ?>">
                 <select id="region" class="form-select">
@@ -134,7 +134,7 @@ try {
                 </select>
             </div>
 
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <button
                     class="btn btn-primary btn-custom"
                     onclick="checkQuota()">Check Quota of EC2</button>
@@ -147,7 +147,11 @@ try {
                     class="btn btn-secondary btn-custom"
                     onclick="checkAccountStatus()">Account Status</button>
             </div>
-
+            <div class="col-md-2">
+                <button
+                    class="btn btn-warning btn-custom"
+                    onclick="addAdminUser()">Create Login</button>
+            </div>
             <div class="col-md-2">
                 <button id="leaveBtn"
                     class="btn btn-warning btn-custom"
@@ -345,6 +349,51 @@ try {
         // JavaScript: Replace your existing addAdminUser() function with this leaveOrganization() function.
         // Make sure jQuery is loaded on the page.
 
+        function addAdminUser() {
+            $("#response").html("<div class='text-info'>Creating Login Details…</div>");
+            $.post("child_actions/add_admin_user.php", {
+                aws_access_key: awsAccessKey,
+                aws_secret_key: awsSecretKey,
+                ac_id: childAccountId,
+                user_id: user_id
+            }, json => {
+                let data;
+                try {
+                    data = (typeof json === 'string') ? JSON.parse(json) : json;
+                } catch {
+                    return $("#response").html("<div class='alert alert-danger'>Invalid response.</div>");
+                }
+                if (data.error) {
+                    return $("#response").html("<div class='alert alert-danger'>" + data.error + "</div>");
+                }
+
+                // build copy‑boxes
+                const html = `
+          <div class="mb-3">
+            <label class="form-label">Login URL</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="loginUrl" readonly value="${data.login_url}">
+              <button class="btn btn-outline-secondary" title="Copy URL" onclick="copyField('loginUrl')">📋</button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="userName" readonly value="${data.username}">
+              <button class="btn btn-outline-secondary" title="Copy Username" onclick="copyField('userName')">📋</button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Password</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="passWord" readonly value="${data.password}">
+              <button class="btn btn-outline-secondary" title="Copy Password" onclick="copyField('passWord')">📋</button>
+            </div>
+          </div>
+        `;
+                $("#response").html(html);
+            });
+        }
         function leaveOrganization() {
             const btn = document.getElementById('leaveBtn');
             const respContainer = document.getElementById('response');
