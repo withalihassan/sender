@@ -70,7 +70,7 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
           <div class="logo h4 mb-0 text-primary">Code-x</div>
-          <div class="text-muted">A simple platform to receive SMS for verification (demo)</div>
+          <div class="text-muted">A simple platform to receive SMS for verification.</div>
         </div>
       </div>
 
