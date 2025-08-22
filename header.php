@@ -71,7 +71,7 @@
       <li><a href="index.php">Home</a></li>
       <li><a href="./iam_users.php"  target="_blank">New ACs</a></li>
       <li><a href="number_dir.php">Numbers Directory</a></li>
-      <li><a href="qrtine_ac.php" target="_blank">Qrtine AC</a></li>
+      <li><a href="./codex" target="_blank">Code-X</a></li>
       <!-- <li><a href="ac_summary.php">Ac Summary</a></li> -->
       <li><a class="logout-button" href="logout.php">Logout</a></li>
     </ul>

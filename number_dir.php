@@ -93,7 +93,7 @@ if (isset($_POST['submit'])) {
         <tbody>
             <?php
             // Fetch all sets from the database with the latest ones on top
-            $stmt = $pdo->query("SELECT * FROM bulk_sets ORDER BY id ASC");
+            $stmt = $pdo->query("SELECT * FROM bulk_sets Where status='fresh' ORDER BY id ASC");
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 echo '<tr>';
                 echo '<td>' . $row['id'] . '</td>';

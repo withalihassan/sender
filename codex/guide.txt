@@ -1,0 +1,4 @@
+
+Token = "http://147.135.212.197/crapi/st/viewstats?token=RlJVSTRSQlaCbnNHeJeNgmpQZlhZdlF3e2yKR4GTYFtakWpbWJJv"
+
+url = Token + "&filternum=" + str(filternum)
