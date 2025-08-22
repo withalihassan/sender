@@ -233,7 +233,7 @@ try {
                 </div>
 
                 <div class="col-md-4 mb-3">
-                    <button id="deliverBtn" class="btn btn-primary">Deliver</button>
+                    <button id="deliverBtn" class="btn btn-danger">canceled</button>
                     <button id="addInCurrentUser" class="btn btn-success">Add in current user</button>
                 </div>
             </div>
@@ -602,7 +602,7 @@ try {
             } = await res.json();
             document.getElementById('response').textContent =
                 success ?
-                'Account delivered successfully' :
+                'Account Canceled successfully' :
                 'No matching record found';
         };
     </script>
