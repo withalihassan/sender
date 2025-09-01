@@ -21,7 +21,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_region' && isset($_GET
     // Use the values as strings to preserve formatting (e.g. leading zeros)
     $region    = $_GET['region'];
     $ac_id     = isset($_GET['ac_id']) ? $_GET['ac_id'] : '';
-    $parent_id = isset($_GET['parrent_id']) ? $_GET['parrent_id'] : '';
+    $parent_id = isset($_GET['parent_id']) ? $_GET['parent_id'] : '';
 
     // Ensure both parameters are provided
     if ($ac_id === '' || $parent_id === '') {
