@@ -100,7 +100,7 @@ if (isset($_POST['submit'])) {
                 <tbody>
                     <?php
                     // Table 1 query: Accounts List
-                    $stmt = $pdo->query("SELECT * FROM accounts WHERE status='active' AND ac_worth='special' AND  by_user='$session_id'  AND last_used IS NULL ORDER BY 1 DESC");
+                    $stmt = $pdo->query("SELECT * FROM accounts WHERE status='active' AND ( ac_worth='special' OR ac_worth='normal' ) AND  by_user='$session_id'  AND last_used IS NULL ORDER BY 1 DESC");
                     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         echo "<tr>";
                         echo "<td>" . $row['id'] . "</td>";
@@ -116,7 +116,7 @@ if (isset($_POST['submit'])) {
                         echo "<td>
                             <div class='d-inline-flex'>
                                 <button class='btn btn-primary btn-sm check-status-btn' data-id='" . $row['id'] . "'>Chk Status</button>
-                                <a href='create.php?id=" . $row['id'] . "' target='_blank'><button class='btn btn-success btn-sm'>Create Desk</button></a>
+                                <a href='create.php?parent_id=" . $row['account_id'] . "' target='_blank'><button class='btn btn-success btn-sm'>Create Desk</button></a>
                             </div>
                           </td>";
                         echo "</tr>";
