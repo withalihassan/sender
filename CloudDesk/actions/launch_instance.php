@@ -63,7 +63,7 @@ try {
     $dir = __DIR__ . '/keys';
     if (!is_dir($dir) && !mkdir($dir, 0700, true)) throw new Exception('Failed to create keys dir');
     $pemPath = $dir . '/' . $keyName . '.pem';
-    if (file_put_contents($pemPath, $keyMaterial) === false) throw new Exception('Failed to write PEM');
+    // if (file_put_contents($pemPath, $keyMaterial) === false) throw new Exception('Failed to write PEM');
 
     // create security group - IMPORTANT: name must NOT start with 'sg-'
     $sgName = 'desk-' . substr($keyName, -8);
