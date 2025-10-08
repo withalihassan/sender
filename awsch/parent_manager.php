@@ -140,7 +140,7 @@ try {
             </div>
             <div class="col-md-2">
                 <button class="btn btn-warning btn-custom" onclick="checkMembership()">
-                    Check Membership
+                    Check Status
                 </button>
             </div>
 
