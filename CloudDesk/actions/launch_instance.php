@@ -33,9 +33,42 @@ if ($ak === '' || $sk === '' || $region === '' || $instanceType === '') {
 
 // minimal Windows AMI map - extend as needed
 $amiMap = [
-    'us-east-1' => 'ami-0e3c2921641a4a215',
-    'us-east-2' => 'ami-0c8eb251138004df2'
+    'us-east-1'       => 'ami-0e3c2921641a4a215', // US East (N. Virginia)
+    'us-east-2'       => 'ami-0c8eb251138004df2', // US East (Ohio)
+    'us-west-1'       => 'ami-06bafac9975cc7e16', // US West (N. California)
+    'us-west-2'       => 'ami-07f134e32cbbbfc98', // US West (Oregon)
+    'af-south-1'      => 'ami-0501e0149581e140b', // Africa (Cape Town)
+    'ap-east-1'       => 'ami-04bdb6fe044469c4f', // Asia Pacific (Hong Kong)
+    'ap-south-2'      => 'ami-004145e85a6e82d2b', // Asia Pacific (Hyderabad)
+    'ap-southeast-3'  => 'ami-0c65bc9f0105f4106', // Asia Pacific (Jakarta)
+    'ap-southeast-5'  => 'ami-0d189ff67430cfdb5', // Asia Pacific (Malaysia)
+    'ap-southeast-4'  => 'ami-030e2b85f3d418447', // Asia Pacific (Melbourne)
+    'ap-south-1'      => 'ami-066eb5725566530f0', // Asia Pacific (Mumbai)
+    'ap-southeast-6'  => 'ami-0102cad94e0404f5b', // Asia Pacific (New Zealand)
+    'ap-northeast-3'  => 'ami-03c70bc5da4b4ccf0', // Asia Pacific (Osaka)
+    'ap-northeast-2'  => 'ami-0c841091a6460aa6b', // Asia Pacific (Seoul)
+    'ap-southeast-1'  => 'ami-0b7263fbb02972e76', // Asia Pacific (Singapore)
+    'ap-southeast-2'  => 'ami-09bbc01c23bd07334', // Asia Pacific (Sydney)
+    'ap-east-2'       => 'ami-06c10b7ddb9e84aa2', // Asia Pacific (Taipei)
+    'ap-southeast-7'  => 'ami-0086e40e6c9f17dc3', // Asia Pacific (Thailand)
+    'ap-northeast-1'  => 'ami-0910ccfe3edc72362', // Asia Pacific (Tokyo)
+    'ca-central-1'    => 'ami-0700225503364abed', // Canada (Central)
+    'ca-west-1'       => 'ami-03971f0cf63131dea', // Canada West (Calgary)
+    'eu-central-1'    => 'ami-0e2ee5d195754bb30', // Europe (Frankfurt)
+    'eu-west-1'       => 'ami-0bed3b2519c0c407f', // Europe (Ireland)
+    'eu-west-2'       => 'ami-06973b278573729cc', // Europe (London)
+    'eu-south-1'      => 'ami-0a9f4a51519bfe43f', // Europe (Milan)
+    'eu-west-3'       => 'ami-03594cfdf106f0944', // Europe (Paris)
+    'eu-south-2'      => 'ami-0e624339c4d94e162', // Europe (Spain)
+    'eu-north-1'      => 'ami-090c5ada6abc8a801', // Europe (Stockholm)
+    'eu-central-2'    => 'ami-0428c41506bbccbb8', // Europe (Zurich)
+    'mx-central-1'    => 'ami-08899bc8da6335256', // Mexico (Central)
+    'me-south-1'      => 'ami-0e15597ac9d07aae1', // Middle East (Bahrain)
+    'me-central-1'    => 'ami-09d48a5089e395dc6', // Middle East (UAE)
+    'il-central-1'    => 'ami-0fecaf8480f8f1762', // Israel (Tel Aviv)
+    'sa-east-1'       => 'ami-0c0d47e26a00217ab', // South America (São Paulo)
 ];
+
 if (!isset($amiMap[$region])) jsonExit(['status'=>'error','message'=>"No AMI configured for region {$region}"],400);
 $amiId = $amiMap[$region];
 

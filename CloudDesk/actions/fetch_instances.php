@@ -48,23 +48,30 @@ try {
         $password = $r['password'];
         $created_at = htmlspecialchars($r['created_at']);
 
-        $out .= "<tr>
-            <td>{$id}</td>
-            <td>{$instance_id}</td>
-            <td>{$region}</td>
-            <td>{$instance_type}</td>
-            <td>{$public_ip}</td>
-            <td>{$password}</td>
-            <td>{$state}</td>
-            <td>{$created_at}</td>
-            <td>
-              <button class='btn btn-primary start'  data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Start </button>
-              <button class='btn btn-warning stop'  data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Stop </button>
-              <button class='btn btn-danger terminate'  data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Terminate </button>
-              <button class='btn btn-info changeip'  data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Chng IP </button>
-              <button class='btn btn-dark getpsw'  data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Get PSW</button>
-            </td>
-        </tr>";
+$out .= "<tr id='row-{$id}'>
+    <td data-field='id'>{$id}</td>
+    <td data-field='instance_id'>{$instance_id}</td>
+    <td data-field='region'>{$region}</td>
+    <td data-field='instance_type'>{$instance_type}</td>
+    <td data-field='public_ip'>{$public_ip}</td>
+    <td data-field='password'>{$password}</td>
+    <td data-field='state'>{$state}</td>
+    <td data-field='created_at'>{$created_at}</td>
+    <td>
+      <button class='btn btn-primary start' 
+              data-id='{$id}' 
+              data-instance-id='{$instance_id}'  
+              data-region='{$region}'> Start </button>
+      <button class='btn btn-warning stop' 
+              data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Stop </button>
+      <button class='btn btn-danger terminate' 
+              data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Terminate </button>
+      <button class='btn btn-info changeip' 
+              data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Chng IP </button>
+      <button class='btn btn-dark getpsw' 
+              data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Get PSW</button>
+    </td>
+</tr>";
     }
 
     echo $out;

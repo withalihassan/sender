@@ -96,25 +96,54 @@ try {
                 <input type="hidden" id="aws_access_key" value="<?php echo $aws_access_key; ?>">
                 <input type="hidden" id="aws_secret_key" value="<?php echo $aws_secret_key; ?>">
                 <select id="region" class="form-select">
+                    <!-- US -->
                     <option value="us-east-1">US East (N. Virginia)</option>
                     <option value="us-east-2">US East (Ohio)</option>
                     <option value="us-west-1">US West (N. California)</option>
                     <option value="us-west-2">US West (Oregon)</option>
-                    <option disabled>──────────</option>
+                    <hr>
+                    <!-- Africa -->
+                    <option value="af-south-1">Africa (Cape Town)</option>
+                    <hr>
+                    <!-- Asia Pacific (expanded) -->
+                    <option value="ap-east-1">Asia Pacific (Hong Kong)</option>
+                    <option value="ap-south-2">Asia Pacific (Hyderabad)</option>
+                    <option value="ap-southeast-3">Asia Pacific (Jakarta)</option>
+                    <option value="ap-southeast-5">Asia Pacific (Malaysia)</option>
+                    <option value="ap-southeast-4">Asia Pacific (Melbourne)</option>
                     <option value="ap-south-1">Asia Pacific (Mumbai)</option>
+                    <option value="ap-southeast-6">Asia Pacific (New Zealand)</option>
                     <option value="ap-northeast-3">Asia Pacific (Osaka)</option>
                     <option value="ap-northeast-2">Asia Pacific (Seoul)</option>
                     <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
                     <option value="ap-southeast-2">Asia Pacific (Sydney)</option>
                     <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
-                    <option disabled>──────────</option>
+                    <option value="ap-east-2">Asia Pacific (Taipei)</option>
+                    <option value="ap-southeast-7">Asia Pacific (Thailand)</option>
+                    <hr>
+                    <!-- Canada -->
                     <option value="ca-central-1">Canada (Central)</option>
-                    <option disabled>──────────</option>
+                    <option value="ca-west-1">Canada West (Calgary)</option>
+                    <hr>
+                    <!-- Europe -->
                     <option value="eu-central-1">Europe (Frankfurt)</option>
                     <option value="eu-west-1">Europe (Ireland)</option>
                     <option value="eu-west-2">Europe (London)</option>
+                    <option value="eu-south-1">Europe (Milan)</option>
                     <option value="eu-west-3">Europe (Paris)</option>
+                    <option value="eu-south-2">Europe (Spain)</option>
                     <option value="eu-north-1">Europe (Stockholm)</option>
+                    <option value="eu-central-2">Europe (Zurich)</option>
+                    <hr>
+                    <!-- Mexico -->
+                    <option value="mx-central-1">Mexico (Central)</option>
+                    <hr>
+                    <!-- Middle East & Israel -->
+                    <option value="me-south-1">Middle East (Bahrain)</option>
+                    <option value="me-central-1">Middle East (UAE)</option>
+                    <option value="il-central-1">Israel (Tel Aviv)</option>
+                    <hr>
+                    <!-- South America -->
                     <option value="sa-east-1">South America (São Paulo)</option>
                 </select>
             </div>
@@ -148,32 +177,66 @@ try {
         <div class="row mb-3">
             <div class="col-md-2">
                 <select id="regionSelect" class="form-select">
+                    <!-- US -->
                     <option value="us-east-1">US East (N. Virginia)</option>
                     <option value="us-east-2">US East (Ohio)</option>
                     <option value="us-west-1">US West (N. California)</option>
                     <option value="us-west-2">US West (Oregon)</option>
                     <hr>
+                    <!-- Africa -->
+                    <option value="af-south-1">Africa (Cape Town)</option>
+                    <hr>
+                    <!-- Asia Pacific (expanded) -->
+                    <option value="ap-east-1">Asia Pacific (Hong Kong)</option>
+                    <option value="ap-south-2">Asia Pacific (Hyderabad)</option>
+                    <option value="ap-southeast-3">Asia Pacific (Jakarta)</option>
+                    <option value="ap-southeast-5">Asia Pacific (Malaysia)</option>
+                    <option value="ap-southeast-4">Asia Pacific (Melbourne)</option>
                     <option value="ap-south-1">Asia Pacific (Mumbai)</option>
+                    <option value="ap-southeast-6">Asia Pacific (New Zealand)</option>
                     <option value="ap-northeast-3">Asia Pacific (Osaka)</option>
                     <option value="ap-northeast-2">Asia Pacific (Seoul)</option>
                     <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
                     <option value="ap-southeast-2">Asia Pacific (Sydney)</option>
                     <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
+                    <option value="ap-east-2">Asia Pacific (Taipei)</option>
+                    <option value="ap-southeast-7">Asia Pacific (Thailand)</option>
                     <hr>
+                    <!-- Canada -->
                     <option value="ca-central-1">Canada (Central)</option>
+                    <option value="ca-west-1">Canada West (Calgary)</option>
                     <hr>
+                    <!-- Europe -->
                     <option value="eu-central-1">Europe (Frankfurt)</option>
                     <option value="eu-west-1">Europe (Ireland)</option>
                     <option value="eu-west-2">Europe (London)</option>
+                    <option value="eu-south-1">Europe (Milan)</option>
                     <option value="eu-west-3">Europe (Paris)</option>
+                    <option value="eu-south-2">Europe (Spain)</option>
                     <option value="eu-north-1">Europe (Stockholm)</option>
+                    <option value="eu-central-2">Europe (Zurich)</option>
+                    <hr>
+                    <!-- Mexico -->
+                    <option value="mx-central-1">Mexico (Central)</option>
+                    <hr>
+                    <!-- Middle East & Israel -->
+                    <option value="me-south-1">Middle East (Bahrain)</option>
+                    <option value="me-central-1">Middle East (UAE)</option>
+                    <option value="il-central-1">Israel (Tel Aviv)</option>
+                    <hr>
+                    <!-- South America -->
                     <option value="sa-east-1">South America (São Paulo)</option>
                 </select>
+
             </div>
             <div class="col-md-2">
                 <select id="instanceType" class="form-select">
+                    <option value="t3.xlarge">t3.xlarge</option>
                     <option value="c5a.xlarge">c5a.xlarge</option>
+                    <option value="c5.xlarge">c5.xlarge</option>
                     <option value="c7a.xlarge">c7a.xlarge</option>
+                    <option value="c7.xlarge">c7.xlarge</option>
+                    <option value="t3.2xlarge">t3.2xlarge</option>
                     <option value="c7a.2xlarge">c7a.2xlarge</option>
                     <option value="c7a.8xlarge">c7a.8xlarge</option>
                     <option value="c7i.xlarge">c7i.xlarge</option>
@@ -383,7 +446,7 @@ try {
                         var finalHtml = '<div class="success"><strong>Desk Launched Successfully</strong><br>' +
                             'Instance ID: <code>' + (json.instance_id || '') + '</code><br>' +
                             'State: ' + (json.instance_state || '') + '<br>' +
-                            'Public IP: <code>' + (json.public_ip || 'pending') + '</code><br>' ;
+                            'Public IP: <code>' + (json.public_ip || 'pending') + '</code><br>';
 
                         $('#response').append(finalHtml);
 
