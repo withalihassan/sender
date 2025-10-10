@@ -11,8 +11,9 @@ use Aws\Sts\StsClient;
 use Aws\Exception\AwsException;
 
 // Render the HTML form
-function renderForm($alertHtml = '') {
-    echo <<<HTML
+function renderForm($alertHtml = '')
+{
+  echo <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -43,11 +44,11 @@ function renderForm($alertHtml = '') {
 </body>
 </html>
 HTML;
-    exit;
+  exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    renderForm();
+  renderForm();
 }
 
 // Grab POST values
@@ -56,50 +57,50 @@ $secretKey = trim($_POST['aws_secret_key']  ?? '');
 $region    = trim($_POST['region']          ?? 'us‑east‑1');
 
 if (empty($accessKey) || empty($secretKey)) {
-    renderForm("<div class='alert alert-danger'>Missing AWS credentials.</div>");
+  renderForm("<div class='alert alert-danger'>Missing AWS credentials.</div>");
 }
 
 try {
-    // Organizations client
-    $org = new OrganizationsClient([
-        'version'     => 'latest',
-        'region'      => $region,
-        'credentials' => [
-            'key'    => $accessKey,
-            'secret' => $secretKey,
-        ],
-    ]);
+  // Organizations client
+  $org = new OrganizationsClient([
+    'version'     => 'latest',
+    'region'      => $region,
+    'credentials' => [
+      'key'    => $accessKey,
+      'secret' => $secretKey,
+    ],
+  ]);
 
-    // STS client
-    $sts = new StsClient([
-        'version'     => 'latest',
-        'region'      => $region,
-        'credentials' => [
-            'key'    => $accessKey,
-            'secret' => $secretKey,
-        ],
-    ]);
+  // STS client
+  $sts = new StsClient([
+    'version'     => 'latest',
+    'region'      => $region,
+    'credentials' => [
+      'key'    => $accessKey,
+      'secret' => $secretKey,
+    ],
+  ]);
 
-    // 1) Describe the Org (gives master account ID & email)
-    $orgInfo = $org->describeOrganization();
-    $masterId    = $orgInfo['Organization']['MasterAccountId']    ?? '';
-    $masterEmail = $orgInfo['Organization']['MasterAccountEmail'] ?? '';
+  // 1) Describe the Org (gives master account ID & email)
+  $orgInfo = $org->describeOrganization();
+  $masterId    = $orgInfo['Organization']['MasterAccountId']    ?? '';
+  $masterEmail = $orgInfo['Organization']['MasterAccountEmail'] ?? '';
 
-    // 2) Get our own account ID via STS
-    $identity     = $sts->getCallerIdentity();
-    $ourAccountId = $identity['Account'];
+  // 2) Get our own account ID via STS
+  $identity     = $sts->getCallerIdentity();
+  $ourAccountId = $identity['Account'];
 
-    // 3) Compare IDs
-    $isMaster = ($ourAccountId === $masterId);
+  // 3) Compare IDs
+  $isMaster = ($ourAccountId === $masterId);
 
-    // Render result page
-    $heading    = $isMaster ? 'I am Master' : 'I am Member & No Ready';
-    $alertClass = $isMaster ? 'success'              : 'danger';
-    $roleText   = $isMaster
-                    ? 'This AWS account <strong>is the master account</strong> of its AWS Organization.'
-                    : 'This AWS account <strong>is a member account</strong> in an AWS Organization.';
+  // Render result page
+  $heading    = $isMaster ? 'I am Master' : 'I am Member & No Ready';
+  $alertClass = $isMaster ? 'success'              : 'danger';
+  $roleText   = $isMaster
+    ? 'This AWS account <strong>is the master account</strong> of its AWS Organization.'
+    : 'This AWS account <strong>is a member account</strong> in an AWS Organization.';
 
-    echo <<<HTML
+  echo <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -110,33 +111,38 @@ try {
 <body class="p-4">
   <div class="alert alert-{$alertClass}">
     <h6 class="alert-heading">{$heading}</h6>
+        <hr>
+    <p>
+      <strong>Parent Account ID:</strong> {$ourAccountId}<br>
+      <strong>Parent  Email:</strong> {$masterEmail}
+    </p>
   </div>
 </body>
 </html>
 HTML;
-
 } catch (AwsException $e) {
-    $code = $e->getAwsErrorCode();
-    $msg  = htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+  $code = $e->getAwsErrorCode();
+  $msg  = htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
 
-    // Not in an Org?
-    if ($code === 'AWSOrganizationsNotInUseException'
-        || stripos($e->getMessage(), 'not in organization') !== false
-    ) {
-        echo <<<HTML
+  // Not in an Org?
+  if (
+    $code === 'AWSOrganizationsNotInUseException'
+    || stripos($e->getMessage(), 'not in organization') !== false
+  ) {
+    echo <<<HTML
 <div class="alert alert-warning m-4">
   <h4 class="alert-heading"> I am Fuly ready</h4>
 </div>
 <p class="text-center"><a href="" class="btn btn-secondary">Try Again</a></p>
 HTML;
-    } else {
-        // Other error
-        echo <<<HTML
+  } else {
+    // Other error
+    echo <<<HTML
 <div class="alert alert-danger m-4">
   <h4 class="alert-heading">Error Checking Organization</h4>
   <p>{$msg}</p>
 </div>
 <p class="text-center"><a href="" class="btn btn-secondary">Try Again</a></p>
 HTML;
-    }
+  }
 }
