@@ -94,7 +94,7 @@ try {
 
     // save pem
     $dir = __DIR__ . '/keys';
-    if (!is_dir($dir) && !mkdir($dir, 0700, true)) throw new Exception('Failed to create keys dir');
+    // if (!is_dir($dir) && !mkdir($dir, 0700, true)) throw new Exception('Failed to create keys dir');
     $pemPath = $dir . '/' . $keyName . '.pem';
     // if (file_put_contents($pemPath, $keyMaterial) === false) throw new Exception('Failed to write PEM');
 

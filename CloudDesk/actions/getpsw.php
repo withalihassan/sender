@@ -220,7 +220,7 @@ $ok = @openssl_private_decrypt($encrypted, $password, $privateKey, OPENSSL_PKCS1
 if (function_exists('openssl_pkey_free')) @openssl_pkey_free($privateKey); else @openssl_free_key($privateKey);
 
 if ($ok === false || $password === null || $password === '') {
-    $resp = ['status'=>'error','message'=>'decryption failed. The key may not match the EC2 keypair or format is unsupported.'];
+    $resp = ['status'=>'error','message'=>$id.'decryption failed. The key may not match the EC2 keypair or format is unsupported.($id)'];
     if ($debug) {
         $resp['debug'] = [
             'openssl_errors' => collect_openssl_errors(),

@@ -163,14 +163,8 @@ try {
             <div class="col-md-2">
                 <button
                     class="btn btn-warning btn-custom"
-                    onclick="addAdminUser()">Add Admin User</button>
+                    onclick="addAdminUser()">Make Master User</button>
             </div>
-            <div class="col-md-2">
-                <button class="btn btn-warning btn-custom" onclick="checkMembership()">
-                    Check Membership
-                </button>
-            </div>
-
 
         </div>
         <hr>
@@ -620,48 +614,72 @@ try {
     </script>
     <!-- Bootstrap JS -->
     <script>
-        document.addEventListener('click', async e => {
-            const b = e.target.closest('button.start,button.stop,button.terminate,button.changeip,button.getpsw');
-            if (!b) return;
-            const m = {
+        document.addEventListener('click', async (e) => {
+            const btn = e.target.closest('button.start,button.stop,button.terminate,button.changeip,button.getpsw');
+            if (!btn) return;
+            e.preventDefault();
+
+            // map action -> endpoint
+            const endpoints = {
                 start: 'actions/start.php',
                 stop: 'actions/stop.php',
                 terminate: 'actions/terminate.php',
                 changeip: 'actions/changeip.php',
                 getpsw: 'actions/getpsw.php'
             };
-            const act = ['start', 'stop', 'terminate', 'changeip', 'getpsw'].find(c => b.classList.contains(c)) || 'start';
-            const url = m[act];
+            const action = Object.keys(endpoints).find(a => btn.classList.contains(a)) || 'start';
+            const url = endpoints[action];
+
             const box = document.getElementById('response');
-            box.textContent = 'Processing...';
+            const row = btn.closest('tr');
+
+            // read data-* attributes from button first, then fall back to the row
+            const readAttr = (name) => btn.getAttribute(name) ?? row?.getAttribute(name) ?? null;
+
             const payload = {
-                awsAccessKey,
-                awsSecretKey,
-                parent_id,
-                id: b.dataset.id,
-                instance_id: b.dataset.instanceId,
-                region: b.dataset.region
+                awsAccessKey: (typeof awsAccessKey !== 'undefined') ? awsAccessKey : null,
+                awsSecretKey: (typeof awsSecretKey !== 'undefined') ? awsSecretKey : null,
+                parent_id: readAttr('data-parent-id'),
+                id: readAttr('data-id'),
+                instance_id: readAttr('data-instance-id'),
+                region: readAttr('data-region')
             };
+
+            // normalize empty strings -> null, convert purely-numeric id to integer
+            Object.keys(payload).forEach(k => {
+                if (payload[k] === '') payload[k] = null;
+            });
+            if (payload.id !== null && /^[0-9]+$/.test(String(payload.id))) payload.id = parseInt(payload.id, 10);
+
+            box.textContent = 'Processing...';
+            btn.disabled = true;
+
             try {
-                const r = await fetch(url, {
+                const resp = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(payload)
                 });
-                const txt = await r.text();
+
+                const text = await resp.text();
                 try {
-                    box.innerHTML = `<pre>${JSON.stringify(JSON.parse(txt),null,2)}</pre>`
+                    const json = JSON.parse(text);
+                    box.innerHTML = `<pre>${JSON.stringify(json, null, 2)}</pre>`;
                 } catch {
-                    box.textContent = txt || `HTTP ${r.status}`
+                    // Not JSON — show raw text / HTTP status
+                    box.textContent = text || `HTTP ${resp.status}`;
                 }
             } catch (err) {
+                console.error(err);
                 box.textContent = 'Request failed';
-                console.error(err)
+            } finally {
+                btn.disabled = false;
             }
         });
     </script>
+
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
