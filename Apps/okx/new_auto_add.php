@@ -1,10 +1,13 @@
 <?php
-// auto_add_ac.php (updated)
-// Usage: place in your project, make sure db.php sets $pdo (PDO) and session.php provides session/user if needed.
-require_once __DIR__ . '/db.php'; // must set $pdo = new PDO(...)
+// auto_add_ac_smtpdev.php
+// Usage: ensure db.php sets $pdo = new PDO(...) and session.php provides session info if used.
+
+require_once __DIR__ . '/db.php'; // adjust path if needed
 include "../session.php";
 
-$MAILTM_BASE = getenv('MAILTM_BASE') ?: 'https://api.mail.tm';
+$SMTP_BASE = getenv('SMTP_DEV_BASE') ?: 'https://api.smtp.dev';
+$SMTP_API_KEY = getenv('SMTP_DEV_API_KEY') ?: 'smtplabs_wu9je5CiV6ezxoELcmk2MYehAzh918uSqK75w7YvjZsRrWRH';
+
 $errors = [];
 $created = [];
 $failed = [];
@@ -15,90 +18,122 @@ $success = 0;
 $range_id = isset($_GET['rid']) ? (int)$_GET['rid'] : (isset($_POST['range_id']) ? (int)$_POST['range_id'] : null);
 $user_id = isset($_GET['uid']) ? (int)$_GET['uid'] : (isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null);
 
-function api_request($method, $path, $body = null, $headers = []) {
-    global $MAILTM_BASE;
-    $url = rtrim($MAILTM_BASE, '/') . $path;
+/**
+ * Make API request to smtp.dev
+ * returns ['code'=>int, 'body'=>string, 'error'=>string|null]
+ */
+function api_request($method, $path, $body = null, $extraHeaders = []) {
+    global $SMTP_BASE, $SMTP_API_KEY;
+    $url = rtrim($SMTP_BASE, '/') . $path;
     $ch = curl_init($url);
-    $defaultHeaders = ['Accept: application/ld+json', 'Content-Type: application/json'];
-    $allHeaders = array_merge($defaultHeaders, $headers);
+
+    $headers = [
+        'Accept: application/json',
+        'Content-Type: application/json',
+        'X-API-KEY: ' . $SMTP_API_KEY
+    ];
+
+    foreach ($extraHeaders as $h) $headers[] = $h;
+
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $allHeaders);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 25);
     if ($body !== null) {
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
     }
-    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+
     $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    return ['code' => $code, 'body' => $resp, 'error' => $err];
+
+    return ['code' => (int)$code, 'body' => $resp === false ? null : $resp, 'error' => $err ? $err : null];
 }
 
+/**
+ * Choose a domain from /domains
+ * returns domain string or throws Exception
+ */
 function choose_domain() {
-    $r = api_request('GET', '/domains');
-    if ($r['error']) throw new Exception('mail.tm request error: ' . $r['error']);
+    $r = api_request('GET', '/domains?isActive=true&page=1');
+    if (!empty($r['error'])) throw new Exception('smtp.dev request error: ' . $r['error']);
     $j = json_decode($r['body'], true);
-    if (!$j) throw new Exception('mail.tm invalid response (not json)');
-    $list = $j['hydra:member'] ?? $j['items'] ?? $j;
-    if (!is_array($list) || count($list) === 0) throw new Exception('no mail.tm domains found');
+    if (!is_array($j)) throw new Exception('smtp.dev invalid response (not json)');
+
+    // docs show "member" array; fallback to hydra:member or items or plain array
+    $list = $j['member'] ?? $j['hydra:member'] ?? $j['items'] ?? null;
+    if (!$list && isset($j[0])) $list = $j;
+
+    if (!is_array($list) || count($list) === 0) {
+        throw new Exception('no smtp.dev domains found');
+    }
 
     foreach ($list as $d) {
         if (is_array($d) && !empty($d['domain'])) return $d['domain'];
         if (is_array($d) && !empty($d['name'])) return $d['name'];
     }
+
+    // fallback to first element value
     $first = $list[0];
     if (is_array($first)) {
+        if (!empty($first['domain'])) return $first['domain'];
         $vals = array_values($first);
-        return $vals[0] ?? reset($first);
+        return (string)($vals[0] ?? reset($first));
     }
     return (string)$first;
 }
 
-function create_account($address, $password) {
-    $r = api_request('POST', '/accounts', ['address' => $address, 'password' => $password]);
-    return $r;
+/**
+ * Create account via POST /accounts
+ * returns response array from api_request
+ */
+function create_account_api($address, $password) {
+    return api_request('POST', '/accounts', ['address' => $address, 'password' => $password]);
 }
 
-function get_token($address, $password) {
-    $r = api_request('POST', '/token', ['address' => $address, 'password' => $password]);
-    if ($r['error']) return ['ok' => false, 'error' => $r['error'], 'code' => $r['code'], 'body' => $r['body']];
+/**
+ * Check existing account via GET /accounts?address=...
+ * returns account info array or null
+ */
+function get_account_by_address($address) {
+    $q = '/accounts?address=' . urlencode($address) . '&page=1';
+    $r = api_request('GET', $q);
+    if (!empty($r['error'])) return null;
     $j = json_decode($r['body'], true);
-    if (is_array($j) && !empty($j['token'])) {
-        return ['ok' => true, 'token' => $j['token']];
+    if (!is_array($j)) return null;
+    $list = $j['member'] ?? $j['hydra:member'] ?? $j['items'] ?? null;
+    if (!$list && isset($j[0])) $list = $j;
+    if (is_array($list) && count($list) > 0) {
+        return $list[0];
     }
-    if (is_array($j) && !empty($j['accessToken'])) {
-        return ['ok' => true, 'token' => $j['accessToken']];
-    }
-    return ['ok' => false, 'code' => $r['code'], 'body' => $r['body']];
+    return null;
 }
 
-function get_me($token) {
-    $r = api_request('GET', '/me', null, ['Authorization: Bearer ' . $token]);
-    if ($r['error']) return ['ok' => false, 'error' => $r['error']];
-    $j = json_decode($r['body'], true);
-    if (is_array($j) && !empty($j['id'])) return ['ok' => true, 'me' => $j];
-    return ['ok' => false, 'code' => $r['code'], 'body' => $r['body']];
-}
-
-function create_or_get_mailbox_verified($address = null, $password = null, $maxAttempts = 6) {
+/**
+ * Create or reuse mailbox (using smtp.dev)
+ * returns [$address, $password, $generatedBool]
+ */
+function create_or_get_mailbox_smtpdev($address = null, $password = null, $maxAttempts = 6) {
     $attempt = 0;
     $generatedOverall = false;
+
     while ($attempt < $maxAttempts) {
         $attempt++;
-        $generatedThis = false;
 
+        // generate domain/local if needed
         if (!$address) {
             try {
                 $dom = choose_domain();
             } catch (Exception $e) {
                 throw new Exception("choose_domain failed: " . $e->getMessage());
             }
-            $local = substr(bin2hex(random_bytes(3)), 0, 6);
+            $local = substr(bin2hex(random_bytes(3)), 0, 6); // 6 hex chars
             $addressCandidate = 'okx-' . $local . '@' . $dom;
             $generatedThis = true;
         } else {
             $addressCandidate = $address;
+            $generatedThis = false;
         }
 
         if (!$password) {
@@ -108,55 +143,24 @@ function create_or_get_mailbox_verified($address = null, $password = null, $maxA
             $passwordCandidate = $password;
         }
 
-        $res = create_account($addressCandidate, $passwordCandidate);
-        if ($res['error']) {
-            if ($attempt >= $maxAttempts) {
-                throw new Exception("API network error on create: " . $res['error']);
-            } else {
-                usleep(200000);
-                continue;
-            }
-        }
-
+        $res = create_account_api($addressCandidate, $passwordCandidate);
         $code = (int)$res['code'];
         $body = $res['body'];
 
-        if (in_array($code, [200, 201])) {
-            $tok = get_token($addressCandidate, $passwordCandidate);
-            if (!empty($tok['ok']) && !empty($tok['token'])) {
-                $me = get_me($tok['token']);
-                if (!empty($me['ok'])) {
-                    return [$addressCandidate, $passwordCandidate, $generatedThis || $generatedOverall];
-                } else {
-                    if ($attempt >= $maxAttempts) {
-                        throw new Exception("Created account but /me verification failed: " . json_encode($me));
-                    }
-                    usleep(200000);
-                    continue;
-                }
-            } else {
-                if ($attempt >= $maxAttempts) {
-                    throw new Exception("Created account but token fetch failed: " . json_encode($tok));
-                }
-                usleep(200000);
-                continue;
-            }
+        // Success (201/200) - account created
+        if (in_array($code, [200, 201, 204])) {
+            // created; return
+            return [$addressCandidate, $passwordCandidate, ($generatedThis || $generatedOverall)];
         }
 
+        // Conflict / validation error - maybe account exists
         if (in_array($code, [409, 422])) {
-            $tok2 = get_token($addressCandidate, $passwordCandidate);
-            if (!empty($tok2['ok']) && !empty($tok2['token'])) {
-                $me2 = get_me($tok2['token']);
-                if (!empty($me2['ok'])) {
-                    return [$addressCandidate, $passwordCandidate, false];
-                } else {
-                    $address = null;
-                    $password = null;
-                    $generatedOverall = true;
-                    usleep(150000);
-                    continue;
-                }
+            // try to fetch existing account
+            $existing = get_account_by_address($addressCandidate);
+            if ($existing && !empty($existing['address'])) {
+                return [$existing['address'], $passwordCandidate, false];
             } else {
+                // if not found, mark generated and retry
                 $address = null;
                 $password = null;
                 $generatedOverall = true;
@@ -165,9 +169,28 @@ function create_or_get_mailbox_verified($address = null, $password = null, $maxA
             }
         }
 
-        if ($attempt >= $maxAttempts) {
-            throw new Exception("Unexpected create_account response (code {$code}): {$body}");
+        // Rate limited or server busy
+        if ($code === 429) {
+            // exponential-ish backoff
+            usleep(500000 * $attempt);
+            continue;
         }
+
+        // Network/CURL error
+        if (!empty($res['error'])) {
+            if ($attempt >= $maxAttempts) {
+                throw new Exception("Network error on create_account: " . $res['error']);
+            }
+            usleep(200000);
+            continue;
+        }
+
+        // Other unexpected response - try to inspect body for details and retry until attempts exhausted
+        if ($attempt >= $maxAttempts) {
+            $b = is_string($body) ? $body : json_encode($body);
+            throw new Exception("Unexpected create_account response (code {$code}): {$b}");
+        }
+
         usleep(150000);
     }
 
@@ -211,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             try {
-                list($email, $email_psw, $generated) = create_or_get_mailbox_verified();
+                list($email, $email_psw, $generated) = create_or_get_mailbox_smtpdev();
             } catch (Exception $e) {
                 $failed[] = ['phone' => $phone, 'reason' => 'mail creation/verify failed: ' . $e->getMessage()];
                 continue;
@@ -233,6 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $failed[] = ['phone' => $phone, 'reason' => 'DB insert failed: ' . $e->getMessage(), 'email' => $email];
             }
 
+            // gentle delay to avoid rate limits
             usleep(200000);
         }
     }
@@ -242,13 +266,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Bulk Add Accounts (verified)</title>
+  <title>Bulk Add Accounts (smtp.dev)</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>body{background:#f6f8fa;padding:20px}</style>
 </head>
 <body>
 <div class="container" style="max-width:900px">
-  <h3 class="mb-3">Bulk Add Accounts — verified</h3>
+  <h3 class="mb-3">Bulk Add Accounts — smtp.dev</h3>
 
   <?php if (!empty($errors)): ?>
     <div class="alert alert-danger">
@@ -294,7 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               if (!empty($f['email'])) echo ' (email: '.htmlspecialchars($f['email']).')';
               echo '</li>';
           } ?></ul>
-          <div class="form-text">If an address already exists and the password doesn't match, the script will generate a new address automatically.</div>
+          <div class="form-text">If an address already exists and the password doesn't match, the script will try to reuse the existing account automatically.</div>
         </div>
       </div>
     <?php endif; ?>
@@ -314,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <div class="d-flex gap-2">
-      <button class="btn btn-primary" type="submit">Add Bulk Accounts (verify)</button>
+      <button class="btn btn-primary" type="submit">Add Bulk Accounts (smtp.dev)</button>
       <a href="index.php" class="btn btn-secondary">Back</a>
     </div>
   </form>

@@ -1,9 +1,10 @@
 <?php
-// edit_account.php - mail.tm port from your working Python script (fast, reliable)
+// edit_account.php - adjusted to use smtp.dev account/mailbox message endpoints
 require_once __DIR__ . '/db.php'; // must set $pdo = new PDO(...)
 include "../session.php";
 
-$MAILTM_BASE = getenv('MAILTM_BASE') ?: 'https://api.mail.tm';
+$SMTP_BASE = getenv('SMTP_DEV_BASE') ?: 'https://api.smtp.dev';
+$SMTP_API_KEY = getenv('SMTP_DEV_API_KEY') ?: 'smtplabs_wu9je5CiV6ezxoELcmk2MYehAzh918uSqK75w7YvjZsRrWRH';
 $API_TOKEN_BASE = "http://147.135.212.197/crapi/st/viewstats?token=RlJVSTRSQlaCbnNHeJeNgmpQZlhZdlF3e2yKR4GTYFtakWpbWJJv";
 
 header('X-Content-Type-Options: nosniff');
@@ -15,15 +16,20 @@ function json_out($arr) {
 }
 
 /* ---------- HTTP helper (cURL) ---------- */
-function http_request($method, $path_or_url, $body = null, $token = null, $timeout = 10) {
-    global $MAILTM_BASE;
-    // allow passing full URL (starts with http) or path (starts with /)
-    $url = (preg_match('/^https?:\\/\\//i', $path_or_url) ? $path_or_url : rtrim($MAILTM_BASE, '/') . $path_or_url);
+function http_request($method, $path_or_url, $body = null, $timeout = 10) {
+    global $SMTP_BASE, $SMTP_API_KEY;
+    $url = (preg_match('/^https?:\\/\\//i', $path_or_url) ? $path_or_url : rtrim($SMTP_BASE, '/') . $path_or_url);
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-    $headers = ['Accept: application/ld+json', 'Content-Type: application/json', 'User-Agent: mailtm-php/1.0'];
-    if ($token) $headers[] = 'Authorization: Bearer ' . $token;
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+    $headers = [
+        'Accept: application/json',
+        'Content-Type: application/json',
+        'User-Agent: smtpdev-php/1.0'
+    ];
+    if (!empty($SMTP_API_KEY)) {
+        $headers[] = 'X-API-KEY: ' . $SMTP_API_KEY;
+    }
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
@@ -33,65 +39,6 @@ function http_request($method, $path_or_url, $body = null, $token = null, $timeo
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     return ['code'=>$code, 'body'=>$resp, 'error'=>$err];
-}
-
-/* ---------- mail.tm functions (mirrors your Python) ---------- */
-function get_domains() {
-    $r = http_request('GET', '/domains', null, null, 8);
-    if ($r['error']) return ['ok'=>false,'error'=>$r['error']];
-    $j = @json_decode($r['body'], true);
-    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body']];
-    $list = $j['hydra:member'] ?? $j['items'] ?? $j;
-    if (!is_array($list) || count($list) === 0) return ['ok'=>false,'error'=>'no domains','raw'=>$j];
-    return ['ok'=>true,'domains'=>$list];
-}
-
-function choose_domain() {
-    $d = get_domains();
-    if (!$d['ok']) throw new Exception('no mail.tm domains: ' . ($d['error'] ?? ''));
-    $first = $d['domains'][0];
-    return $first['domain'] ?? $first['name'] ?? array_values($first)[0];
-}
-
-function create_account($address, $password) {
-    $r = http_request('POST', '/accounts', ['address'=>$address,'password'=>$password], null, 10);
-    if ($r['error']) return ['ok'=>false,'error'=>$r['error'],'code'=>$r['code']];
-    $j = @json_decode($r['body'], true);
-    if ($r['code'] === 201 || $r['code'] === 200) return ['ok'=>true,'raw'=>$j];
-    // return raw for debugging
-    return ['ok'=>false,'code'=>$r['code'],'raw'=>$j];
-}
-
-function get_token_raw($address, $password) {
-    return http_request('POST', '/token', ['address'=>$address,'password'=>$password], null, 8);
-}
-
-function get_token($address, $password) {
-    $r = get_token_raw($address, $password);
-    if ($r['error']) return ['ok'=>false,'error'=>$r['error'],'code'=>$r['code'],'raw'=>$r['body']];
-    $j = @json_decode($r['body'], true);
-    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body'],'code'=>$r['code']];
-    $token = $j['token'] ?? $j['access_token'] ?? $j['accessToken'] ?? null;
-    if (!$token) return ['ok'=>false,'error'=>'no token in response','raw'=>$j,'code'=>$r['code']];
-    return ['ok'=>true,'token'=>$token];
-}
-
-function list_messages($token) {
-    $r = http_request('GET', '/messages', null, $token, 8);
-    if ($r['error']) return ['ok'=>false,'error'=>$r['error'],'code'=>$r['code']];
-    $j = @json_decode($r['body'], true);
-    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body']];
-    $members = $j['hydra:member'] ?? $j['items'] ?? $j;
-    if (!is_array($members)) return ['ok'=>false,'error'=>'unexpected messages format','raw'=>$members];
-    return ['ok'=>true,'messages'=>$members];
-}
-
-function get_message($token, $mid) {
-    $r = http_request('GET', '/messages/' . urlencode($mid), null, $token, 8);
-    if ($r['error']) return ['ok'=>false,'error'=>$r['error'],'code'=>$r['code']];
-    $j = @json_decode($r['body'], true);
-    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body']];
-    return ['ok'=>true,'message'=>$j];
 }
 
 /* ---------- helpers: HTML->text and OTP extraction ---------- */
@@ -116,75 +63,136 @@ function extract_code_from_text($text) {
     foreach ($patterns as $pat) {
         if (preg_match($pat, $lower, $m)) return $m[1];
     }
-    // fallback: first 6-digit
     if (preg_match('/\b(\d{6})\b/', $text, $m)) return $m[1];
-    // wider fallback: 4-8 digits
     if (preg_match('/\b(\d{4,8})\b/', $text, $m)) return $m[1];
     return null;
 }
 
-/* ---------- poll_for_otp (fast, mirrors Python) ---------- */
-function poll_for_otp($address, $password, $timeout = 60, $interval = 2) {
-    // Try token, if 401/Invalid -> attempt create account once, then retry token
-    $tokenRes = get_token($address, $password);
-    if (!$tokenRes['ok']) {
-        $raw = $tokenRes['raw'] ?? null;
-        $code = $tokenRes['code'] ?? null;
-        $tryCreate = false;
-        if ($code === 401) $tryCreate = true;
-        if (is_array($raw) && isset($raw['message']) && stripos($raw['message'],'invalid') !== false) $tryCreate = true;
-        if ($tryCreate) {
-            // attempt create (ignore failure)
-            create_account($address, $password);
-            $tokenRes = get_token($address, $password);
-        } else {
-            return ['ok'=>false,'error'=>'token failed','debug'=>$tokenRes];
+/* ---------- smtp.dev-specific helpers ---------- */
+
+function find_account_by_address($address) {
+    // GET /accounts?address=user@example.com
+    $path = '/accounts?address=' . urlencode($address);
+    $r = http_request('GET', $path, null, 8);
+    if ($r['error']) return ['ok'=>false,'error'=>$r['error']];
+    $j = @json_decode($r['body'], true);
+    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body']];
+    // docs use "member" collection or direct array
+    $list = $j['member'] ?? $j;
+    if (!is_array($list)) return ['ok'=>false,'error'=>'unexpected accounts response','raw'=>$j];
+    // choose first entry that matches address
+    foreach ($list as $acct) {
+        $addr = $acct['address'] ?? null;
+        if ($addr && strcasecmp($addr, $address) === 0) {
+            return ['ok'=>true,'account'=>$acct];
+        }
+    }
+    // fallback: if single account was returned as object (not array)
+    if (isset($j['address']) && strcasecmp($j['address'], $address) === 0) {
+        return ['ok'=>true,'account'=>$j];
+    }
+    return ['ok'=>false,'error'=>'account not found','raw'=>$j];
+}
+
+function choose_mailbox_from_account($account) {
+    // account may include 'mailboxes' array with 'id' and 'path'
+    if (!is_array($account)) return null;
+    if (!empty($account['mailboxes']) && is_array($account['mailboxes'])) {
+        $m = $account['mailboxes'][0];
+        return $m['id'] ?? null;
+    }
+    // some responses might expose mailboxes under different names; try to call account detail endpoint if id present
+    return null;
+}
+
+function list_mailbox_messages($accountId, $mailboxId, $page = 1) {
+    $path = "/accounts/" . urlencode($accountId) . "/mailboxes/" . urlencode($mailboxId) . "/messages?page=" . intval($page);
+    $r = http_request('GET', $path, null, 8);
+    if ($r['error']) return ['ok'=>false,'error'=>$r['error']];
+    $j = @json_decode($r['body'], true);
+    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body'],'code'=>$r['code']];
+    // messages usually in member / items / hydra:member / direct array
+    $members = $j['member'] ?? $j['items'] ?? $j;
+    if (!is_array($members)) return ['ok'=>false,'error'=>'unexpected messages format','raw'=>$members];
+    return ['ok'=>true,'messages'=>$members,'raw'=>$j];
+}
+
+function get_message_detail($accountId, $mailboxId, $messageId) {
+    $path = "/accounts/" . urlencode($accountId) . "/mailboxes/" . urlencode($mailboxId) . "/messages/" . urlencode($messageId);
+    $r = http_request('GET', $path, null, 8);
+    if ($r['error']) return ['ok'=>false,'error'=>$r['error']];
+    $j = @json_decode($r['body'], true);
+    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body']];
+    return ['ok'=>true,'message'=>$j];
+}
+
+/* ---------- poll_for_otp using account/mailbox endpoints ---------- */
+function poll_for_otp($address, $password_unused, $timeout = 120, $interval = 2) {
+    // smtp.dev authenticates requests by X-API-KEY, account password isn't used for API calls here,
+    // but we keep signature compatible with your call sites.
+    $acctRes = find_account_by_address($address);
+    if (!$acctRes['ok']) return ['ok'=>false,'error'=>'account_lookup_failed','detail'=>$acctRes];
+
+    $account = $acctRes['account'];
+    $accountId = $account['id'] ?? null;
+    if (!$accountId) return ['ok'=>false,'error'=>'account_id_missing','raw'=>$account];
+
+    $mailboxId = choose_mailbox_from_account($account);
+    // if mailboxes not present in the account object, attempt GET /accounts/{id} to fetch mailboxes
+    if (!$mailboxId) {
+        $r = http_request('GET', '/accounts/' . urlencode($accountId), null, 6);
+        if ($r['error']) return ['ok'=>false,'error'=>$r['error']];
+        $j = @json_decode($r['body'], true);
+        if (is_array($j) && !empty($j['mailboxes']) && is_array($j['mailboxes'])) {
+            $mailboxId = $j['mailboxes'][0]['id'] ?? null;
         }
     }
 
-    if (!$tokenRes['ok']) return ['ok'=>false,'error'=>'token failed after create attempt','debug'=>$tokenRes];
-    $token = $tokenRes['token'];
+    if (!$mailboxId) return ['ok'=>false,'error'=>'mailbox_id_missing','account'=>$account];
 
     $deadline = time() + (int)$timeout;
     $seen = [];
     $collected = [];
 
+    $page = 1;
     while (time() <= $deadline) {
-        $list = list_messages($token);
+        $list = list_mailbox_messages($accountId, $mailboxId, $page);
         if (!$list['ok']) {
-            // if API transient error, sleep and retry quickly
+            // transient error — wait and retry
             usleep((int)($interval * 1000000));
             continue;
         }
         $members = $list['messages'];
-        // sort newest-first by createdAt if available
+        // sort newest first if createdAt exists
         usort($members, function($a,$b){
-            $ka = $a['createdAt'] ?? '';
-            $kb = $b['createdAt'] ?? '';
+            $ka = $a['createdAt'] ?? $a['created_at'] ?? '';
+            $kb = $b['createdAt'] ?? $b['created_at'] ?? '';
             return strcmp($kb, $ka);
         });
+
         foreach ($members as $m) {
-            $mid = $m['id'] ?? null;
+            $mid = $m['id'] ?? $m['_id'] ?? null;
             if (!$mid || isset($seen[$mid])) continue;
             $seen[$mid] = true;
-            // prefer message text if present in summary
-            $body = trim($m['text'] ?? '');
+
+            // try to get details for richer content if body/html not present
+            $body = trim($m['text'] ?? $m['body'] ?? '');
             $html = $m['html'] ?? '';
             $subject = $m['subject'] ?? '';
             if ($body === '' && $html === '') {
-                // fetch full message only when needed
-                $full = get_message($token, $mid);
+                $full = get_message_detail($accountId, $mailboxId, $mid);
                 if (!$full['ok']) continue;
                 $mf = $full['message'];
-                $body = trim($mf['text'] ?? '');
+                $body = trim($mf['text'] ?? $mf['body'] ?? '');
                 $html = $mf['html'] ?? '';
                 $subject = $mf['subject'] ?? $subject;
-                $createdAt = $mf['createdAt'] ?? ($m['createdAt'] ?? null);
+                $createdAt = $mf['createdAt'] ?? $mf['created_at'] ?? ($m['createdAt'] ?? $m['created_at'] ?? null);
                 $from = $mf['from'] ?? ($m['from'] ?? null);
             } else {
-                $createdAt = $m['createdAt'] ?? null;
+                $createdAt = $m['createdAt'] ?? $m['created_at'] ?? null;
                 $from = $m['from'] ?? null;
             }
+
             if ($body === '') $body = strip_html($html);
             $combined = trim($subject . "\n" . $body);
             $entry = [
@@ -196,15 +204,18 @@ function poll_for_otp($address, $password, $timeout = 60, $interval = 2) {
                 'combined'=>$combined
             ];
             $collected[] = $entry;
-            // try extract OTP now
             $code = extract_code_from_text($combined);
             if ($code) {
                 return ['ok'=>true,'otp'=>$code,'messages'=>$collected];
             }
         }
-        // sleep then loop
+
+        // if there are multiple pages, fetch next; otherwise reset to page 1 after short wait
+        $page++;
+        // small backoff to avoid rate limits
         usleep((int)($interval * 1000000));
     }
+
     return ['ok'=>false,'error'=>'timeout','messages'=>$collected];
 }
 
@@ -240,7 +251,7 @@ function fetch_number_messages($phone) {
     return ['ok'=>true,'messages'=>$out,'raw'=>$data];
 }
 
-/* ---------- AJAX handlers ---------- */
+/* ---------- AJAX handlers (same as before but use new poll_for_otp) ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     if ($action === 'fetch_email_otp') {
@@ -250,16 +261,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute([$id]);
         $acc = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$acc) json_out(['ok'=>false,'error'=>'account not found']);
-        if (empty($acc['email']) || empty($acc['email_psw'])) json_out(['ok'=>false,'error'=>'email or password missing']);
-        // poll for otp quickly: 60s timeout, 2s interval
-        $res = poll_for_otp($acc['email'], $acc['email_psw'], 60, 2);
+        if (empty($acc['email'])) json_out(['ok'=>false,'error'=>'email missing']);
+        // poll for otp quickly: 120s timeout, 2s interval
+        $res = poll_for_otp($acc['email'], $acc['email_psw'] ?? null, 120, 2);
         if ($res['ok']) {
-            // save to db
             $u = $pdo->prepare("UPDATE accounts SET email_otp = :otp WHERE id = :id");
             $u->execute([':otp'=>$res['otp'], ':id'=>$id]);
             json_out(['ok'=>true,'otp'=>$res['otp'],'messages'=>$res['messages']]);
         } else {
-            json_out(['ok'=>false,'error'=>$res['error'] ?? 'no otp','messages'=>$res['messages'] ?? [], 'debug'=>$res['debug'] ?? null]);
+            json_out(['ok'=>false,'error'=>$res['error'] ?? 'no otp','messages'=>$res['messages'] ?? [], 'debug'=>$res['detail'] ?? null]);
         }
     } elseif ($action === 'fetch_number_otp') {
         $id = (int)($_POST['id'] ?? 0);
@@ -272,7 +282,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($phone === '') json_out(['ok'=>false,'error'=>'phone empty']);
         $res = fetch_number_messages($phone);
         if (!$res['ok']) json_out(['ok'=>false,'error'=>$res['error'] ?? 'failed','raw'=>$res['raw'] ?? null]);
-        // try extract otp
         $otp = null;
         foreach ($res['messages'] as $m) {
             $otp = extract_code_from_text($m);
@@ -291,19 +300,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $email_psw = $_POST['email_psw'] ?? '';
         $email_otp = $_POST['email_otp'] ?? '';
         $phone_otp = $_POST['phone_otp'] ?? '';
+        $account_psw = $_POST['account_psw'] ?? null;
         $ac_status = $_POST['ac_status'] ?? null;
+
         $sql = "UPDATE accounts SET email_psw = :email_psw, email_otp = :email_otp, phone_otp = :phone_otp";
+        if ($account_psw !== null) $sql .= ", account_psw = :account_psw";
         if ($ac_status !== null) $sql .= ", ac_status = :ac_status";
         $sql .= " WHERE id = :id";
+
         $stmt = $pdo->prepare($sql);
         $params = [':email_psw'=>$email_psw, ':email_otp'=>$email_otp, ':phone_otp'=>$phone_otp, ':id'=>$id];
+        if ($account_psw !== null) $params[':account_psw'] = $account_psw;
         if ($ac_status !== null) $params[':ac_status'] = $ac_status;
-        $stmt->execute($params);
-        json_out(['ok'=>true,'msg'=>'saved']);
+
+        try {
+            $stmt->execute($params);
+            json_out(['ok'=>true,'msg'=>'saved']);
+        } catch (Exception $e) {
+            json_out(['ok'=>false,'error'=>'db error: '.$e->getMessage()]);
+        }
     }
 }
 
-/* ---------- Render UI ---------- */
+/* ---------- Render UI (unchanged) ---------- */
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if (!$id) { echo "Missing ?id=..."; exit; }
 
@@ -311,49 +330,57 @@ $stmt = $pdo->prepare("SELECT id,email,email_psw,email_otp,country,num_code,phon
 $stmt->execute([$id]);
 $acc = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$acc) { echo "Account not found"; exit; }
+
+function esc($v){ return htmlspecialchars((string)$v, ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8'); }
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Edit Account #<?=htmlspecialchars($acc['id'])?></title>
+  <title>Edit Account #<?=esc($acc['id'])?></title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>body{background:#f6f8fa;padding:20px} .mono{font-family:monospace; white-space:pre-wrap}</style>
 </head>
 <body>
 <div class="container" style="max-width:980px">
-  <h4 class="mb-3">Edit Account #<?=htmlspecialchars($acc['id'])?></h4>
-
+  <h4 class="mb-3">Edit Account #<?=esc($acc['id'])?></h4>
   <form id="saveForm" class="card card-body mb-3">
-    <input type="hidden" name="id" value="<?=htmlspecialchars($acc['id'])?>">
+    <input type="hidden" name="id" value="<?=esc($acc['id'])?>">
     <div class="row g-2 mb-2">
       <div class="col-md-3">
         <label class="form-label">Email</label>
-        <input class="form-control" readonly id="email" value="<?=htmlspecialchars($acc['email'])?>">
+        <input class="form-control" readonly id="email" value="<?=esc($acc['email'])?>">
       </div>
       <div class="col-md-3">
         <label class="form-label">Email Password</label>
-        <input name="email_psw" id="email_psw" class="form-control" value="<?=htmlspecialchars($acc['email_psw'])?>">
+        <input name="email_psw" id="email_psw" class="form-control" value="<?=esc($acc['email_psw'])?>">
       </div>
       <div class="col-md-3">
         <label class="form-label">Email OTP</label>
-        <input name="email_otp" id="email_otp" class="form-control" value="<?=htmlspecialchars($acc['email_otp'])?>">
+        <input name="email_otp" id="email_otp" class="form-control" value="<?=esc($acc['email_otp'])?>">
       </div>
       <div class="col-md-3 d-flex align-items-end">
         <button id="btnFetchEmailOtp" type="button" class="btn btn-primary w-100">Fetch Email OTP</button>
       </div>
     </div>
 
-    <div class="row g-2 mb-2">
-      <div class="col-md-6">
+    <div class="row g-2 mb-2 align-items-end">
+      <div class="col-md-4">
         <label class="form-label">Phone</label>
-        <input class="form-control" readonly id="phone" value="<?=htmlspecialchars($acc['phone'])?>">
+        <input class="form-control" readonly id="phone" value="<?=esc($acc['phone'])?>">
       </div>
+
       <div class="col-md-3">
         <label class="form-label">Phone OTP</label>
-        <input name="phone_otp" id="phone_otp" class="form-control" value="<?=htmlspecialchars($acc['phone_otp'])?>">
+        <input name="phone_otp" id="phone_otp" class="form-control" value="<?=esc($acc['phone_otp'])?>">
       </div>
-      <div class="col-md-3 d-flex align-items-end">
+
+      <div class="col-md-3">
+        <label class="form-label">Account password</label>
+        <input name="account_psw" id="account_psw" class="form-control" value="<?=esc($acc['account_psw'])?>">
+      </div>
+
+      <div class="col-md-2 d-flex align-items-end">
         <button id="btnFetchPhoneOtp" type="button" class="btn btn-secondary w-100">Fetch Number OTP</button>
       </div>
     </div>
@@ -387,7 +414,7 @@ function disableButtons(b) {
 $(function(){
   $('#btnFetchEmailOtp').on('click', function(){
     disableButtons(true);
-    showStatus('Starting email fetch (up to 60s)...', true);
+    showStatus('Starting email fetch (up to 120s)...', true);
     showFlow({phase:'start_email_polling'});
     $.post('', { action: 'fetch_email_otp', id: <?=json_encode($acc['id'])?> }, function(resp){
       disableButtons(false);

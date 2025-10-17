@@ -38,7 +38,7 @@ $user_id = $_GET["uid"];
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h3 class="mb-0">Accounts</h3>
             <div><a href="add_account.php" class="btn btn-primary">Make Account Ready</a></div>
-            <div><a href="auto_add_ac.php?rid=<?php echo $range_id; ?>&uid=<?php echo $user_id; ?>" class="btn btn-success">Add Bulk Account</a></div>
+            <div><a href="new_auto_add.php?rid=<?php echo $range_id; ?>&uid=<?php echo $user_id; ?>" class="btn btn-success">Add Bulk Account</a></div>
         </div>
 
         <div class="card">
