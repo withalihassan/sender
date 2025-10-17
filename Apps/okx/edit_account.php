@@ -1,4 +1,6 @@
 <?php
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
 // edit_account.php - adjusted to use smtp.dev account/mailbox message endpoints
 require_once __DIR__ . '/db.php'; // must set $pdo = new PDO(...)
 include "../session.php";
@@ -22,10 +24,13 @@ function http_request($method, $path_or_url, $body = null, $timeout = 10) {
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+    // avoid curl printing progress/expect header issues
+    curl_setopt($ch, CURLOPT_FAILONERROR, false);
     $headers = [
         'Accept: application/json',
         'Content-Type: application/json',
-        'User-Agent: smtpdev-php/1.0'
+        'User-Agent: smtpdev-php/1.0',
+        'Expect:' // avoid "100-continue" issues
     ];
     if (!empty($SMTP_API_KEY)) {
         $headers[] = 'X-API-KEY: ' . $SMTP_API_KEY;
@@ -34,11 +39,28 @@ function http_request($method, $path_or_url, $body = null, $timeout = 10) {
     if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
     curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+
     $resp = curl_exec($ch);
-    $err = curl_error($ch);
+    $curlErr = curl_error($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    return ['code'=>$code, 'body'=>$resp, 'error'=>$err];
+
+    // curl-level error
+    if ($curlErr) {
+        return ['code'=>$code, 'body'=>$resp, 'error'=>'curl_error: '.$curlErr];
+    }
+
+    // interpret non-2xx as error and extract message if possible
+    if ($code < 200 || $code >= 300) {
+        $decoded = @json_decode($resp, true);
+        $msg = $decoded['message'] ?? $decoded['error'] ?? (is_string($resp) ? $resp : json_encode($resp));
+        $msg = trim((string)$msg);
+        if ($msg === '') $msg = "http_status_$code";
+        return ['code'=>$code, 'body'=>$resp, 'error'=>"http_error_{$code}: {$msg}"];
+    }
+
+    // success
+    return ['code'=>$code, 'body'=>$resp, 'error'=>null];
 }
 
 /* ---------- helpers: HTML->text and OTP extraction ---------- */
