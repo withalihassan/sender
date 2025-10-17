@@ -48,6 +48,7 @@ $user_id = $_GET["uid"];
                         <tr>
                             <th>ID</th>
                             <th>Email</th>
+                            <th>PSW</th>
                             <th>Phone</th>
                             <th>Country</th>
                             <th>Status</th>
@@ -62,7 +63,7 @@ $user_id = $_GET["uid"];
                             $range_id = $_GET["rid"];
                             $user_id = $_GET["uid"];
 
-                            $stmt = $pdo->prepare("SELECT id,email,email_otp,num_code,phone,phone_otp,country,ac_status,ac_last_used,created_at FROM `accounts` Where by_user='$user_id' AND range_id='$range_id' ORDER BY id DESC");
+                            $stmt = $pdo->prepare("SELECT id,email,email_otp,num_code,phone,phone_otp,account_psw,country,ac_status,ac_last_used,created_at FROM `accounts` Where by_user='$user_id' AND range_id='$range_id' ORDER BY id DESC");
                             $stmt->execute();
                             while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                 $ac_ready_status = (!empty($r['email_otp']) && !empty($r['phone_otp']))
@@ -73,6 +74,7 @@ $user_id = $_GET["uid"];
                                 echo '<tr>';
                                 echo '<td>' . $id . '</td>';
                                 echo '<td>' . htmlspecialchars($r['email']) . '</td>';
+                                echo '<td>' . htmlspecialchars($r['account_psw']) . '</td>';
                                 echo '<td>' . htmlspecialchars(trim(($r['num_code'] ?? '') . ' ' . ($r['phone'] ?? ''))) . '</td>';
                                 echo '<td>' . htmlspecialchars($r['country']) . '</td>';
                                 echo '<td>' . $ac_ready_status . '</td>';
