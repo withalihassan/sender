@@ -1,2 +1,14 @@
 SMTP-KEY-API
 smtplabs_wu9je5CiV6ezxoELcmk2MYehAzh918uSqK75w7YvjZsRrWRH
+
+
+
+Profiles Distribution => target 500 profiles
+10 folder 
+one folder have 50  profiles 
+one minute me 3 sms in one profile 
+then waiting timer
+
+Estimation 
+30 sms per minute in one rdp 
+

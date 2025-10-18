@@ -1,9 +1,13 @@
 <?php
+// edit_account_improved.php
+// Rewritten: improved error reporting, deeper message parsing, stronger OTP extraction
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
-// edit_account.php - adjusted to use smtp.dev account/mailbox message endpoints
+// optional: set error log file if you want detailed server-side logs
+// ini_set('error_log', __DIR__ . '/php-error.log');
+
 require_once __DIR__ . '/db.php'; // must set $pdo = new PDO(...)
-include "../session.php";
+include __DIR__ . '/../session.php';
 
 $SMTP_BASE = getenv('SMTP_DEV_BASE') ?: 'https://api.smtp.dev';
 $SMTP_API_KEY = getenv('SMTP_DEV_API_KEY') ?: 'smtplabs_wu9je5CiV6ezxoELcmk2MYehAzh918uSqK75w7YvjZsRrWRH';
@@ -13,28 +17,31 @@ header('X-Content-Type-Options: nosniff');
 
 function json_out($arr) {
     header('Content-Type: application/json; charset=utf-8');
+    // ensure error field is never an empty string
+    if (array_key_exists('error', $arr) && ($arr['error'] === null || $arr['error'] === '')) {
+        $arr['error'] = 'server_error_empty';
+        if (!isset($arr['debug'])) $arr['debug'] = [];
+        $arr['debug']['note'] = 'original error string was empty';
+    }
     echo json_encode($arr);
     exit;
 }
 
-/* ---------- HTTP helper (cURL) ---------- */
+/* ---------- HTTP helper (cURL) with improved diagnostics ---------- */
 function http_request($method, $path_or_url, $body = null, $timeout = 10) {
     global $SMTP_BASE, $SMTP_API_KEY;
-    $url = (preg_match('/^https?:\\/\\//i', $path_or_url) ? $path_or_url : rtrim($SMTP_BASE, '/') . $path_or_url);
+    $url = (preg_match('/^https?:\/\//i', $path_or_url) ? $path_or_url : rtrim($SMTP_BASE, '/') . $path_or_url);
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
-    // avoid curl printing progress/expect header issues
     curl_setopt($ch, CURLOPT_FAILONERROR, false);
     $headers = [
         'Accept: application/json',
         'Content-Type: application/json',
-        'User-Agent: smtpdev-php/1.0',
-        'Expect:' // avoid "100-continue" issues
+        'User-Agent: smtpdev-php/1.1',
+        'Expect:'
     ];
-    if (!empty($SMTP_API_KEY)) {
-        $headers[] = 'X-API-KEY: ' . $SMTP_API_KEY;
-    }
+    if (!empty($SMTP_API_KEY)) $headers[] = 'X-API-KEY: ' . $SMTP_API_KEY;
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
@@ -45,29 +52,37 @@ function http_request($method, $path_or_url, $body = null, $timeout = 10) {
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    // curl-level error
     if ($curlErr) {
-        return ['code'=>$code, 'body'=>$resp, 'error'=>'curl_error: '.$curlErr];
+        $msg = 'curl_error: ' . $curlErr;
+        error_log("http_request CURL ERROR: {$msg} url={$url}");
+        return ['code'=>$code, 'body'=>$resp, 'error'=>$msg];
     }
 
-    // interpret non-2xx as error and extract message if possible
+    // try to parse body JSON for better message
+    $decoded = @json_decode($resp, true);
     if ($code < 200 || $code >= 300) {
-        $decoded = @json_decode($resp, true);
-        $msg = $decoded['message'] ?? $decoded['error'] ?? (is_string($resp) ? $resp : json_encode($resp));
-        $msg = trim((string)$msg);
-        if ($msg === '') $msg = "http_status_$code";
-        return ['code'=>$code, 'body'=>$resp, 'error'=>"http_error_{$code}: {$msg}"];
+        $msg = null;
+        if (is_array($decoded)) {
+            $msg = $decoded['message'] ?? $decoded['error'] ?? null;
+        }
+        if (!$msg) {
+            // look for common fields
+            if (is_string($resp) && trim($resp) !== '') $msg = trim($resp);
+            else $msg = "http_status_{$code}";
+        }
+        $err = "http_error_{$code}: {$msg}";
+        error_log("http_request HTTP ERROR: {$err} url={$url}");
+        return ['code'=>$code, 'body'=>$resp, 'error'=>$err, 'decoded'=>$decoded];
     }
 
-    // success
-    return ['code'=>$code, 'body'=>$resp, 'error'=>null];
+    return ['code'=>$code, 'body'=>$resp, 'error'=>null, 'decoded'=> $decoded];
 }
 
-/* ---------- helpers: HTML->text and OTP extraction ---------- */
+/* ---------- helpers: HTML->text and OTP extraction (kept and slightly extended) ---------- */
 function strip_html($html) {
     if (!$html) return '';
-    $html = preg_replace('#(?s)<script.*?>.*?</script>#', ' ', $html);
-    $html = preg_replace('#(?s)<style.*?>.*?</style>#', ' ', $html);
+    $html = preg_replace('#(?s)<script.*?>.*?</script>#i', ' ', $html);
+    $html = preg_replace('#(?s)<style.*?>.*?</style>#i', ' ', $html);
     $text = strip_tags($html);
     $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $text = preg_replace('/\s+/', ' ', $text);
@@ -76,95 +91,154 @@ function strip_html($html) {
 
 function extract_code_from_text($text) {
     if (!$text) return null;
-    $lower = mb_strtolower($text);
+    // normalize whitespace and lowercase for pattern matching
+    $plain = preg_replace('/\s+/', ' ', $text);
+    $lower = mb_strtolower($plain);
     $patterns = [
-        '/code[^0-9]{0,30}(\d{6})/i',
-        '/otp[^0-9]{0,30}(\d{6})/i',
-        '/verification[^0-9]{0,30}(\d{6})/i',
+        '/code[^0-9]{0,30}(\d{4,8})/i',
+        '/otp[^0-9]{0,30}(\d{4,8})/i',
+        '/verification[^0-9]{0,30}(\d{4,8})/i',
+        '/pin[^0-9]{0,30}(\d{4,8})/i',
     ];
     foreach ($patterns as $pat) {
         if (preg_match($pat, $lower, $m)) return $m[1];
     }
-    if (preg_match('/\b(\d{6})\b/', $text, $m)) return $m[1];
-    if (preg_match('/\b(\d{4,8})\b/', $text, $m)) return $m[1];
+    // fallback: find standalone 4-8 digit tokens
+    if (preg_match('/\b(\d{6})\b/', $plain, $m)) return $m[1];
+    if (preg_match('/\b(\d{4,8})\b/', $plain, $m)) return $m[1];
     return null;
 }
 
-/* ---------- smtp.dev-specific helpers ---------- */
+/* ---------- message content extraction helpers ---------- */
+function extract_text_from_message_obj($m) {
+    // attempt multiple common field names
+    $candidates = [];
+    if (is_array($m)) {
+        // common direct fields
+        foreach (['text','body','plain','plainText','content','message','snippet','summary'] as $k) {
+            if (!empty($m[$k]) && is_string($m[$k])) $candidates[] = $m[$k];
+        }
+        // nested html
+        if (!empty($m['html']) && is_string($m['html'])) $candidates[] = strip_html($m['html']);
 
-function find_account_by_address($address) {
-    // GET /accounts?address=user@example.com
-    $path = '/accounts?address=' . urlencode($address);
-    $r = http_request('GET', $path, null, 8);
-    if ($r['error']) return ['ok'=>false,'error'=>$r['error']];
-    $j = @json_decode($r['body'], true);
-    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body']];
-    // docs use "member" collection or direct array
-    $list = $j['member'] ?? $j;
-    if (!is_array($list)) return ['ok'=>false,'error'=>'unexpected accounts response','raw'=>$j];
-    // choose first entry that matches address
-    foreach ($list as $acct) {
-        $addr = $acct['address'] ?? null;
-        if ($addr && strcasecmp($addr, $address) === 0) {
-            return ['ok'=>true,'account'=>$acct];
+        // payload/parts style (common in some mail APIs)
+        if (!empty($m['parts']) && is_array($m['parts'])) {
+            foreach ($m['parts'] as $p) {
+                if (is_array($p)) {
+                    if (!empty($p['body']) && is_string($p['body'])) $candidates[] = $p['body'];
+                    if (!empty($p['text']) && is_string($p['text'])) $candidates[] = $p['text'];
+                    if (!empty($p['content']) && is_string($p['content'])) $candidates[] = $p['content'];
+                    if (!empty($p['html']) && is_string($p['html'])) $candidates[] = strip_html($p['html']);
+                }
+            }
+        }
+
+        // Some APIs return 'payload' with 'parts'
+        if (!empty($m['payload']) && is_array($m['payload'])) {
+            $parts = $m['payload']['parts'] ?? [];
+            foreach ($parts as $p) {
+                if (!empty($p['body']['data'])) {
+                    // maybe base64url encoded
+                    $data = $p['body']['data'];
+                    try { $decoded = base64_decode(str_replace(['-','_'], ['+','/'], $data)); } catch (Exception $e) { $decoded = null; }
+                    if ($decoded) $candidates[] = $decoded;
+                }
+                if (!empty($p['mimeType']) && stripos($p['mimeType'], 'text/plain') !== false && !empty($p['body']['text'])) {
+                    $candidates[] = $p['body']['text'];
+                }
+            }
+        }
+
+        // as last resort, try to join all string values from the message array
+        if (empty($candidates)) {
+            $acc = [];
+            array_walk_recursive($m, function($v) use (&$acc){ if (is_string($v) && trim($v) !== '') $acc[] = $v; });
+            if (!empty($acc)) $candidates[] = implode("\n", array_slice($acc, 0, 10));
         }
     }
-    // fallback: if single account was returned as object (not array)
-    if (isset($j['address']) && strcasecmp($j['address'], $address) === 0) {
-        return ['ok'=>true,'account'=>$j];
+
+    // return first non-empty candidate after cleaning
+    foreach ($candidates as $c) {
+        $s = trim(is_string($c) ? $c : json_encode($c));
+        if ($s !== '') return $s;
     }
-    return ['ok'=>false,'error'=>'account not found','raw'=>$j];
+    return '';
+}
+
+/* ---------- smtp.dev-specific helpers (improved) ---------- */
+function find_account_by_address($address) {
+    $path = '/accounts?address=' . urlencode($address);
+    $r = http_request('GET', $path, null, 8);
+    if ($r['error']) return ['ok'=>false,'error'=>$r['error'],'raw'=>$r['body'] ?? null];
+    $j = $r['decoded'] ?? @json_decode($r['body'], true);
+    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid_json_in_account_lookup','raw'=>$r['body'] ?? null];
+    $list = $j['member'] ?? $j['items'] ?? $j;
+    if (is_array($list)) {
+        foreach ($list as $acct) {
+            $addr = $acct['address'] ?? null;
+            if ($addr && strcasecmp($addr, $address) === 0) return ['ok'=>true,'account'=>$acct];
+        }
+    }
+    if (isset($j['address']) && strcasecmp($j['address'], $address) === 0) return ['ok'=>true,'account'=>$j];
+    return ['ok'=>false,'error'=>'account_not_found','raw'=>$j];
 }
 
 function choose_mailbox_from_account($account) {
-    // account may include 'mailboxes' array with 'id' and 'path'
     if (!is_array($account)) return null;
     if (!empty($account['mailboxes']) && is_array($account['mailboxes'])) {
         $m = $account['mailboxes'][0];
+        return $m['id'] ?? $m['path'] ?? null;
+    }
+    if (!empty($account['mailbox']) && is_array($account['mailbox'])) {
+        $m = $account['mailbox'][0];
         return $m['id'] ?? null;
     }
-    // some responses might expose mailboxes under different names; try to call account detail endpoint if id present
     return null;
 }
 
 function list_mailbox_messages($accountId, $mailboxId, $page = 1) {
     $path = "/accounts/" . urlencode($accountId) . "/mailboxes/" . urlencode($mailboxId) . "/messages?page=" . intval($page);
     $r = http_request('GET', $path, null, 8);
-    if ($r['error']) return ['ok'=>false,'error'=>$r['error']];
-    $j = @json_decode($r['body'], true);
-    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body'],'code'=>$r['code']];
-    // messages usually in member / items / hydra:member / direct array
-    $members = $j['member'] ?? $j['items'] ?? $j;
-    if (!is_array($members)) return ['ok'=>false,'error'=>'unexpected messages format','raw'=>$members];
+    if ($r['error']) return ['ok'=>false,'error'=>$r['error'],'raw'=>$r['body'] ?? null];
+    $j = $r['decoded'] ?? @json_decode($r['body'], true);
+    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid_json_messages','raw'=>$r['body'] ?? null];
+    $members = $j['member'] ?? $j['items'] ?? $j['hydra:member'] ?? $j;
+    if (!is_array($members)) return ['ok'=>false,'error'=>'unexpected_messages_format','raw'=>$members];
     return ['ok'=>true,'messages'=>$members,'raw'=>$j];
 }
 
 function get_message_detail($accountId, $mailboxId, $messageId) {
     $path = "/accounts/" . urlencode($accountId) . "/mailboxes/" . urlencode($mailboxId) . "/messages/" . urlencode($messageId);
     $r = http_request('GET', $path, null, 8);
-    if ($r['error']) return ['ok'=>false,'error'=>$r['error']];
-    $j = @json_decode($r['body'], true);
-    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid json','raw'=>$r['body']];
-    return ['ok'=>true,'message'=>$j];
+    if ($r['error']) return ['ok'=>false,'error'=>$r['error'],'raw'=>$r['body'] ?? null];
+    $j = $r['decoded'] ?? @json_decode($r['body'], true);
+    if (!is_array($j)) return ['ok'=>false,'error'=>'invalid_json_message_detail','raw'=>$r['body'] ?? null];
+
+    // normalize and extract likely text/html content
+    $text = extract_text_from_message_obj($j);
+    $html = '';
+    if (!empty($j['html'])) $html = $j['html'];
+    if (empty($text) && !empty($html)) $text = strip_html($html);
+
+    $out = $j;
+    $out['__extracted_text'] = $text;
+    return ['ok'=>true,'message'=>$out];
 }
 
-/* ---------- poll_for_otp using account/mailbox endpoints ---------- */
+/* ---------- poll_for_otp using account/mailbox endpoints (improved diagnostics) ---------- */
 function poll_for_otp($address, $password_unused, $timeout = 120, $interval = 2) {
-    // smtp.dev authenticates requests by X-API-KEY, account password isn't used for API calls here,
-    // but we keep signature compatible with your call sites.
     $acctRes = find_account_by_address($address);
-    if (!$acctRes['ok']) return ['ok'=>false,'error'=>'account_lookup_failed','detail'=>$acctRes];
+    if (!$acctRes['ok']) return ['ok'=>false,'error'=>$acctRes['error'] ?? 'account_lookup_failed','detail'=>$acctRes];
 
     $account = $acctRes['account'];
     $accountId = $account['id'] ?? null;
-    if (!$accountId) return ['ok'=>false,'error'=>'account_id_missing','raw'=>$account];
+    if (!$accountId) return ['ok'=>false,'error'=>'account_id_missing','account'=>$account];
 
     $mailboxId = choose_mailbox_from_account($account);
-    // if mailboxes not present in the account object, attempt GET /accounts/{id} to fetch mailboxes
     if (!$mailboxId) {
         $r = http_request('GET', '/accounts/' . urlencode($accountId), null, 6);
-        if ($r['error']) return ['ok'=>false,'error'=>$r['error']];
-        $j = @json_decode($r['body'], true);
+        if ($r['error']) return ['ok'=>false,'error'=>$r['error'],'detail'=>$r];
+        $j = $r['decoded'] ?? @json_decode($r['body'], true);
         if (is_array($j) && !empty($j['mailboxes']) && is_array($j['mailboxes'])) {
             $mailboxId = $j['mailboxes'][0]['id'] ?? null;
         }
@@ -175,12 +249,13 @@ function poll_for_otp($address, $password_unused, $timeout = 120, $interval = 2)
     $deadline = time() + (int)$timeout;
     $seen = [];
     $collected = [];
-
     $page = 1;
+    $last_http_errors = [];
+
     while (time() <= $deadline) {
         $list = list_mailbox_messages($accountId, $mailboxId, $page);
         if (!$list['ok']) {
-            // transient error — wait and retry
+            $last_http_errors[] = $list['error'] ?? 'list_failed';
             usleep((int)($interval * 1000000));
             continue;
         }
@@ -194,37 +269,39 @@ function poll_for_otp($address, $password_unused, $timeout = 120, $interval = 2)
 
         foreach ($members as $m) {
             $mid = $m['id'] ?? $m['_id'] ?? null;
-            if (!$mid || isset($seen[$mid])) continue;
+            if (!$mid) {
+                // try to build an id-like fingerprint to avoid duplicates
+                $mid = md5(json_encode($m));
+            }
+            if (isset($seen[$mid])) continue;
             $seen[$mid] = true;
 
-            // try to get details for richer content if body/html not present
-            $body = trim($m['text'] ?? $m['body'] ?? '');
+            // try to obtain text/html - either directly or via detail endpoint
+            $body = trim($m['text'] ?? $m['body'] ?? ($m['snippet'] ?? ''));
             $html = $m['html'] ?? '';
             $subject = $m['subject'] ?? '';
+            $from = $m['from'] ?? null;
+            $createdAt = $m['createdAt'] ?? $m['created_at'] ?? null;
+
             if ($body === '' && $html === '') {
                 $full = get_message_detail($accountId, $mailboxId, $mid);
-                if (!$full['ok']) continue;
-                $mf = $full['message'];
-                $body = trim($mf['text'] ?? $mf['body'] ?? '');
-                $html = $mf['html'] ?? '';
-                $subject = $mf['subject'] ?? $subject;
-                $createdAt = $mf['createdAt'] ?? $mf['created_at'] ?? ($m['createdAt'] ?? $m['created_at'] ?? null);
-                $from = $mf['from'] ?? ($m['from'] ?? null);
-            } else {
-                $createdAt = $m['createdAt'] ?? $m['created_at'] ?? null;
-                $from = $m['from'] ?? null;
+                if ($full['ok']) {
+                    $mf = $full['message'];
+                    $body = trim($mf['__extracted_text'] ?? $mf['text'] ?? $mf['body'] ?? '');
+                    $html = $mf['html'] ?? '';
+                    $subject = $mf['subject'] ?? $subject;
+                    $createdAt = $mf['createdAt'] ?? $mf['created_at'] ?? $createdAt;
+                    $from = $mf['from'] ?? $from;
+                } else {
+                    // if detail fetch failed, keep scanning other messages
+                    $last_http_errors[] = $full['error'] ?? 'detail_failed';
+                    continue;
+                }
             }
 
             if ($body === '') $body = strip_html($html);
             $combined = trim($subject . "\n" . $body);
-            $entry = [
-                'id'=>$mid,
-                'subject'=>$subject,
-                'body'=>$body,
-                'createdAt'=>$createdAt,
-                'from'=>$from,
-                'combined'=>$combined
-            ];
+            $entry = ['id'=>$mid,'subject'=>$subject,'body'=>$body,'createdAt'=>$createdAt,'from'=>$from,'combined'=>$combined];
             $collected[] = $entry;
             $code = extract_code_from_text($combined);
             if ($code) {
@@ -232,76 +309,113 @@ function poll_for_otp($address, $password_unused, $timeout = 120, $interval = 2)
             }
         }
 
-        // if there are multiple pages, fetch next; otherwise reset to page 1 after short wait
         $page++;
-        // small backoff to avoid rate limits
         usleep((int)($interval * 1000000));
     }
 
-    return ['ok'=>false,'error'=>'timeout','messages'=>$collected];
+    // timed out
+    $detail = ['last_http_errors'=>$last_http_errors];
+    return ['ok'=>false,'error'=>'timeout_no_otp','messages'=>$collected,'detail'=>$detail];
 }
 
-/* ---------- phone helper (unchanged) ---------- */
+/* ---------- phone helper (unchanged apart from disciplined error messages) ---------- */
 function fetch_number_messages($phone) {
     global $API_TOKEN_BASE;
     $url = $API_TOKEN_BASE . '&filternum=' . urlencode($phone);
-    $ctx = stream_context_create(['http' => ['timeout' => 6]]);
-    $raw = @file_get_contents($url, false, $ctx);
-    if ($raw === false) return ['ok'=>false,'error'=>'failed to contact external API','url'=>$url];
+
+    // Try cURL first (more robust) with a reasonable timeout
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+        // follow redirects
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        $raw = curl_exec($ch);
+        $curlErr = curl_error($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($raw === false || $curlErr) {
+            error_log("fetch_number_messages: curl failed: {$curlErr} url={$url}");
+            // fall through to file_get_contents fallback below
+            $raw = false;
+        }
+    } else {
+        $raw = false;
+        $curlErr = 'cURL_not_available';
+        $httpCode = null;
+    }
+
+    // Fallback to file_get_contents if cURL failed or not available
+    if ($raw === false) {
+        $ctx = stream_context_create(['http' => ['timeout' => 8]]);
+        $raw = @file_get_contents($url, false, $ctx);
+        if ($raw === false) {
+            error_log("fetch_number_messages: file_get_contents failed url={$url} curl_err={$curlErr}");
+            return ['ok'=>false,'error'=>'failed_to_contact_number_api','url'=>$url,'curl_error'=>$curlErr,'http_code'=>$httpCode];
+        }
+    }
+
     $data = @json_decode($raw, true);
     if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
-        return ['ok'=>false,'error'=>'invalid json from API','raw'=>$raw];
+        error_log("fetch_number_messages: invalid json from number API url={$url} response=" . substr($raw,0,1000));
+        return ['ok'=>false,'error'=>'invalid_json_from_number_api','raw'=>substr($raw,0,1000)];
     }
+
     $out = [];
     if (is_array($data)) {
         foreach ($data as $row) {
             if (is_array($row)) {
                 $message = null;
-                if (isset($row[2])) $message = $row[2];
-                elseif (isset($row['message'])) $message = $row['message'];
+                if (isset($row[2]) && is_string($row[2]) && trim($row[2]) !== '') $message = $row[2];
+                elseif (isset($row['message']) && is_string($row['message']) && trim($row['message']) !== '') $message = $row['message'];
                 else {
                     foreach ($row as $v) {
                         if (is_string($v) && trim($v) !== '') { $message = $v; break; }
                     }
                 }
                 if ($message !== null) $out[] = (string)$message;
-            } elseif (is_string($row)) {
+            } elseif (is_string($row) && trim($row) !== '') {
                 $out[] = $row;
             }
         }
     }
+
     return ['ok'=>true,'messages'=>$out,'raw'=>$data];
 }
 
-/* ---------- AJAX handlers (same as before but use new poll_for_otp) ---------- */
+/* ---------- AJAX handlers (use improved poll_for_otp and better error strings) ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     if ($action === 'fetch_email_otp') {
         $id = (int)($_POST['id'] ?? 0);
-        if (!$id) json_out(['ok'=>false,'error'=>'id required']);
+        if (!$id) json_out(['ok'=>false,'error'=>'id_required']);
         $stmt = $pdo->prepare("SELECT email, email_psw FROM accounts WHERE id = ?");
         $stmt->execute([$id]);
         $acc = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$acc) json_out(['ok'=>false,'error'=>'account not found']);
-        if (empty($acc['email'])) json_out(['ok'=>false,'error'=>'email missing']);
-        // poll for otp quickly: 120s timeout, 2s interval
+        if (!$acc) json_out(['ok'=>false,'error'=>'account_not_found']);
+        if (empty($acc['email'])) json_out(['ok'=>false,'error'=>'email_missing']);
+
         $res = poll_for_otp($acc['email'], $acc['email_psw'] ?? null, 120, 2);
         if ($res['ok']) {
             $u = $pdo->prepare("UPDATE accounts SET email_otp = :otp WHERE id = :id");
             $u->execute([':otp'=>$res['otp'], ':id'=>$id]);
             json_out(['ok'=>true,'otp'=>$res['otp'],'messages'=>$res['messages']]);
         } else {
-            json_out(['ok'=>false,'error'=>$res['error'] ?? 'no otp','messages'=>$res['messages'] ?? [], 'debug'=>$res['detail'] ?? null]);
+            // ensure error field non-empty and include diagnostics
+            $debug = $res['detail'] ?? [];
+            if (isset($res['messages'])) $debug['collected_messages_count'] = count($res['messages']);
+            json_out(['ok'=>false,'error'=>($res['error'] ?? 'unknown_error'), 'messages'=>$res['messages'] ?? [], 'debug'=>$debug]);
         }
     } elseif ($action === 'fetch_number_otp') {
         $id = (int)($_POST['id'] ?? 0);
-        if (!$id) json_out(['ok'=>false,'error'=>'id required']);
+        if (!$id) json_out(['ok'=>false,'error'=>'id_required']);
         $stmt = $pdo->prepare("SELECT phone FROM accounts WHERE id = ?");
         $stmt->execute([$id]);
         $acc = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$acc) json_out(['ok'=>false,'error'=>'account not found']);
+        if (!$acc) json_out(['ok'=>false,'error'=>'account_not_found']);
         $phone = trim($acc['phone'] ?? '');
-        if ($phone === '') json_out(['ok'=>false,'error'=>'phone empty']);
+        if ($phone === '') json_out(['ok'=>false,'error'=>'phone_empty']);
         $res = fetch_number_messages($phone);
         if (!$res['ok']) json_out(['ok'=>false,'error'=>$res['error'] ?? 'failed','raw'=>$res['raw'] ?? null]);
         $otp = null;
@@ -314,11 +428,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $u->execute([':otp'=>$otp, ':id'=>$id]);
             json_out(['ok'=>true,'otp'=>$otp,'messages'=>$res['messages']]);
         } else {
-            json_out(['ok'=>false,'error'=>'no otp found in messages','messages'=>$res['messages']]);
+            json_out(['ok'=>false,'error'=>'no_otp_found_in_messages','messages'=>$res['messages']]);
         }
     } elseif ($action === 'save_account') {
         $id = (int)($_POST['id'] ?? 0);
-        if (!$id) json_out(['ok'=>false,'error'=>'id required']);
+        if (!$id) json_out(['ok'=>false,'error'=>'id_required']);
         $email_psw = $_POST['email_psw'] ?? '';
         $email_otp = $_POST['email_otp'] ?? '';
         $phone_otp = $_POST['phone_otp'] ?? '';
@@ -339,12 +453,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $stmt->execute($params);
             json_out(['ok'=>true,'msg'=>'saved']);
         } catch (Exception $e) {
-            json_out(['ok'=>false,'error'=>'db error: '.$e->getMessage()]);
+            error_log('DB SAVE ERROR: ' . $e->getMessage());
+            json_out(['ok'=>false,'error'=>'db_error','debug'=>['exception'=>$e->getMessage()]]);
         }
     }
 }
 
-/* ---------- Render UI (unchanged) ---------- */
+/* ---------- Render UI (unchanged markup but add more debug display) ---------- */
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if (!$id) { echo "Missing ?id=..."; exit; }
 
@@ -415,7 +530,7 @@ function esc($v){ return htmlspecialchars((string)$v, ENT_QUOTES|ENT_SUBSTITUTE,
   </form>
 
   <div id="flow" class="card card-body mb-3" style="display:none">
-    <h6>Flow / Messages</h6>
+    <h6>Flow / Messages / Debug</h6>
     <div id="flowContent" class="mono"></div>
   </div>
 </div>
@@ -446,13 +561,16 @@ $(function(){
         showStatus('Email OTP fetched: ' + resp.otp, true);
         showFlow({ok:true, otp:resp.otp, messages: resp.messages});
       } else {
-        showStatus('Email OTP not found: ' + (resp.error || 'unknown'), false);
+        var err = resp.error || 'unknown';
+        showStatus('Email OTP not found: ' + err, false);
         showFlow(resp);
       }
     }, 'json').fail(function(xhr){
       disableButtons(false);
       showStatus('Server error', false);
-      showFlow({error: xhr.responseText});
+      var txt = xhr.responseText;
+      try { txt = JSON.parse(txt); } catch(e) {}
+      showFlow({error: txt});
     });
   });
 
@@ -468,13 +586,16 @@ $(function(){
         showStatus('Phone OTP fetched: ' + resp.otp, true);
         showFlow({ok:true, otp:resp.otp, messages: resp.messages});
       } else {
-        showStatus('Phone OTP not found: ' + (resp.error || 'unknown'), false);
+        var err = resp.error || 'unknown';
+        showStatus('Phone OTP not found: ' + err, false);
         showFlow(resp);
       }
     }, 'json').fail(function(xhr){
       disableButtons(false);
       showStatus('Server error', false);
-      showFlow({error: xhr.responseText});
+      var txt = xhr.responseText;
+      try { txt = JSON.parse(txt); } catch(e) {}
+      showFlow({error: txt});
     });
   });
 
@@ -497,7 +618,9 @@ $(function(){
     }, 'json').fail(function(xhr){
       disableButtons(false);
       showStatus('Server error', false);
-      showFlow({error: xhr.responseText});
+      var txt = xhr.responseText;
+      try { txt = JSON.parse(txt); } catch(e) {}
+      showFlow({error: txt});
     });
   });
 });
