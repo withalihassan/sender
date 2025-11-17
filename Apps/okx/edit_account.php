@@ -95,17 +95,17 @@ function extract_code_from_text($text) {
     $plain = preg_replace('/\s+/', ' ', $text);
     $lower = mb_strtolower($plain);
     $patterns = [
-        '/code[^0-9]{0,30}(\d{4,8})/i',
-        '/otp[^0-9]{0,30}(\d{4,8})/i',
-        '/verification[^0-9]{0,30}(\d{4,8})/i',
-        '/pin[^0-9]{0,30}(\d{4,8})/i',
+        '/code[^0-9]{0,30}(\d{6,8})/i',
+        '/otp[^0-9]{0,30}(\d{6,8})/i',
+        '/verification[^0-9]{0,30}(\d{6,8})/i',
+        '/pin[^0-9]{0,30}(\d{6,8})/i',
     ];
     foreach ($patterns as $pat) {
         if (preg_match($pat, $lower, $m)) return $m[1];
     }
     // fallback: find standalone 4-8 digit tokens
     if (preg_match('/\b(\d{6})\b/', $plain, $m)) return $m[1];
-    if (preg_match('/\b(\d{4,8})\b/', $plain, $m)) return $m[1];
+    if (preg_match('/\b(\d{6,8})\b/', $plain, $m)) return $m[1];
     return null;
 }
 

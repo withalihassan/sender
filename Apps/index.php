@@ -100,7 +100,7 @@
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-white/6 text-slate-100">Connect</span>
           </div>
           <div class="mt-4 flex items-center gap-3 text-sm text-slate-300">
-            <button class="px-3 py-1 rounded-lg bg-white/6 hover:bg-white/8 transition">Open</button>
+            <a href="./sumsung" target="_blank"><button class="px-3 py-1 rounded-lg bg-white/6 hover:bg-white/8 transition">Open</button></a>
             <button class="px-3 py-1 rounded-lg bg-white/4 hover:bg-white/6 transition">Logs</button>
             <span class="ml-auto text-xs">Sync OK</span>
           </div>

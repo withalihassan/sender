@@ -328,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <form method="post" class="card card-body">
     <div class="mb-3">
       <label class="form-label">Country</label>
-      <input name="country" class="form-control" value="<?php echo htmlspecialchars($_POST['country'] ?? ''); ?>" placeholder="e.g. Pakistan" />
+      <input name="country" class="form-control" value="<?php echo htmlspecialchars($_POST['country'] ?? ''); ?>" placeholder="e.g. Pakistan"  required />
     </div>
 
     <div class="mb-3">

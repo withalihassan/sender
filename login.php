@@ -58,7 +58,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       <div class="col-md-6">
         <div class="card">
           <div class="card-header text-center">
-            <h3>Login</h3>
+            <h3>Logisn</h3>
           </div>
           <div class="card-body">
             <?php if ($message): ?>
