@@ -4,7 +4,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 
-$repoDir = '/var/www/html';
+$repoDir = '/var/www/html/senders';
 $repoUrl = 'https://github.com/withalihassan/sender.git';
 $branch = 'main';
 

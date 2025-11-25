@@ -166,7 +166,7 @@ if (isset($_GET['stream'])) {
     // If six or more numbers, add the first five once and the sixth twice to yield 7 tasks.
     $otpTasks = array();
     if (count($allowedNumbers) >= 6) {
-      for ($i = 0; $i < 5; $i++) {
+      for ($i = 0; $i < 8; $i++) {
         $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
       }
       // Add the 6th number twice.
@@ -475,8 +475,8 @@ if (isset($_GET['stream'])) {
               <div>
                 <label for="language_select">Select Language:</label>
                 <select id="language_select" name="language_select">
-                  <option value="es-419" selected>Spanish Latin America</option>
-                  <option value="es-419">English (US)</option>
+                  <option value="it-IT" selected>Default-it</option>
+                  <option value="es-419">Spanish Latin America</option>
                   <!-- Add additional languages as needed -->
                 </select>
               </div>
