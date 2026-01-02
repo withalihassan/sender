@@ -70,7 +70,7 @@
     <ul>
       <li><a href="index.php">Home</a></li>
       <li><a href="./iam_users.php"  target="_blank">New ACs</a></li>
-      <li><a href="number_dir.php">Numbers Directory</a></li>
+      <li><a href="number_dir.php">Sets & Limit Controller</a></li>
       <li><a href="./apps" target="_blank">Apps</a></li>
       <li><a href="./codex" target="_blank">Code-X</a></li>
       <li><a href="./CloudDesk" target="_blank">CloudDesk</a></li>

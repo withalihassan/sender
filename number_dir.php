@@ -47,7 +47,7 @@ if (isset($_POST['submit'])) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Manage Bulk Sets</title>
+    <title>Manage Setsh / RL Controller</title>
     <!-- Bootstrap CSS for styling -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
     <!-- DataTables CSS for pagination -->
@@ -60,6 +60,7 @@ if (isset($_POST['submit'])) {
 <body>
 <div class="container-fluid" style="padding: 4%;">
     <h2>Bulk Sets Management</h2>
+    <a href="limit_controller.php" target="_blank"><button class="btn btn-success">Open Limit Controller</button></a>
     <?php 
     if (isset($message)) {
         echo '<div class="alert alert-info">' . $message . '</div>';
@@ -118,7 +119,6 @@ if (isset($_POST['submit'])) {
         </tbody>
     </table>
 </div>
-
 <script>
 $(document).ready(function() {
     // Initialize DataTable for better record display
