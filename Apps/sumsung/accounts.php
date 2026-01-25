@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h3 class="mb-0">Accounts</h3>
         <div class="d-flex gap-2">
             <a href="add_account.php" class="btn btn-primary">Make Account Ready</a>
-            <a href="new_auto_add.php?rid=<?php echo $range_id; ?>&uid=<?php echo $user_id; ?>" class="btn btn-success">Add Bulk Account</a>
+            <a href="new_auto_add.php?rid=<?php echo $range_id; ?>&uid=<?php echo $user_id; ?>" target="_blank" class="btn btn-success">Add Bulk Account</a>
         </div>
     </div>
 
@@ -96,8 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <tbody>
                     <?php
                     try {
-                        $stmt = $pdo->prepare("SELECT id, email, spot_id, profile_id, created_at FROM `accounts` WHERE range_id = ? ORDER BY id DESC");
-                        $stmt->execute([$range_id]);
+                        $stmt = $pdo->prepare("SELECT id, email, spot_id, profile_id, created_at FROM `accounts` WHERE by_user = ? ORDER BY id DESC");
+                        $stmt->execute([$user_id]);
 
                         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                             $id = (int)$r['id'];

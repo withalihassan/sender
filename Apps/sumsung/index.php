@@ -134,7 +134,10 @@ $stmt = $pdo->query("SELECT `id`, `by_user`, `range_name`, `added_date` FROM `ra
       </table>
     </div>
   </div>
-  <a href="accounts.php?rid=8" target="_blank"><button class="btn btn-sm btn-outline-primary ms-1">Open Emails</button></a>
+  <?php
+  $by_user = isset($_SESSION['user_id']) ? (string)$_SESSION['user_id'] : session_id();
+  ?>
+  <a href="accounts.php?uid=<?php echo $by_user;?>" target="_blank"><button class="btn btn-sm btn-outline-primary ms-1">Open Emails</button></a>
 </div>
 
 <!-- Add Modal -->
