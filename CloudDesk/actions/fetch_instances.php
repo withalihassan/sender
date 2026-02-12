@@ -59,11 +59,11 @@ $out .= "<tr id='row-{$id}'>
     <td data-field='created_at'>{$created_at}</td>
     <td>
       <button class='btn btn-primary start' 
-              data-id='{$id}' 
-              data-instance-id='{$instance_id}'  
-              data-region='{$region}'> Start </button>
+              data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Start </button>
       <button class='btn btn-warning stop' 
-              data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Stop </button>
+              data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Stop </button>      
+      <button class='btn btn-success reload' 
+              data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> reload </button>
       <button class='btn btn-danger terminate' 
               data-id='{$id}' data-instance-id='{$instance_id}'  data-region='{$region}'> Terminate </button>
       <button class='btn btn-info changeip' 

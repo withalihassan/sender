@@ -615,7 +615,7 @@ try {
     <!-- Bootstrap JS -->
     <script>
         document.addEventListener('click', async (e) => {
-            const btn = e.target.closest('button.start,button.stop,button.terminate,button.changeip,button.getpsw');
+            const btn = e.target.closest('button.start,button.stop,button.reload,button.terminate,button.changeip,button.getpsw');
             if (!btn) return;
             e.preventDefault();
 
@@ -623,6 +623,7 @@ try {
             const endpoints = {
                 start: 'actions/start.php',
                 stop: 'actions/stop.php',
+                reload: 'actions/reload.php',
                 terminate: 'actions/terminate.php',
                 changeip: 'actions/changeip.php',
                 getpsw: 'actions/getpsw.php'

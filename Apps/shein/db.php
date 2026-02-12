@@ -12,7 +12,7 @@ if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '98.83.29.45') {
     $username = 'admin';
 }
 
-$dbname   = 'manage_sumsung';
+$dbname   = 'manage_shein';
 $password = 'sLoGMCVfEo4TpMGOEm18';
 
 try {

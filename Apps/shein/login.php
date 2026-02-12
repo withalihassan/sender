@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 <div class="container" style="max-width:420px">
   <div class="card card-body">
-    <h4 class="mb-3">Sign in to Sumsung Portal</h4>
+    <h4 class="mb-3">Sign in to Shein Portal</h4>
 
     <?php if (!empty($errors)): ?>
       <div class="alert alert-danger">
