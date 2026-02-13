@@ -125,7 +125,7 @@ $stmt = $pdo->query("SELECT `id`, `by_user`, `range_name`, `added_date` FROM `ra
             echo "<td>
                     <button class=\"btn btn-sm btn-outline-secondary btn-edit\" data-id=\"{$id}\" data-range=\"" . htmlspecialchars($row['range_name'], ENT_QUOTES) . "\">Edit</button>
                     <button class=\"btn btn-sm btn-outline-danger btn-delete ms-1\" data-id=\"{$id}\">Delete</button>
-                    <a href=\"numbers.php?rid={$id}&uid={$by_user}\"><button class=\"btn btn-sm btn-outline-success ms-1\">Open</button></a>
+                    <a href=\"numbers.php?rid={$id}&uid={$by_user}\" target=\"_blank\" ><button class=\"btn btn-sm btn-outline-success ms-1\">Open</button></a>
                   </td>";
             echo "</tr>";
         }

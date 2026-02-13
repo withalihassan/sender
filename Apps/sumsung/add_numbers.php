@@ -28,29 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data_value = trim($_POST['data_value'] ?? '');
     $phones_raw = trim($_POST['phones'] ?? '');
 
-    // normalize phone lines into array, one per non-empty line
-    $lines = preg_split("/\r\n|\n|\r/", $phones_raw);
-    $phones = [];
-    foreach ($lines as $ln) {
-        $ln = trim($ln);
-        if ($ln === '') continue;
-        // keep digits and leading + only
-        $normalized = preg_replace('/[^\d+]/', '', $ln);
-        // if number starts with multiple +, normalize to single +:
-        $normalized = preg_replace('/^\++/', '+', $normalized);
-        // if it starts with + and then nothing, skip
-        if ($normalized === '+' || $normalized === '') continue;
-        $phones[] = $normalized;
-    }
-
     // normalize country code: strip non-digits, then add leading + if present
     $country_code_norm = preg_replace('/\D+/', '', $country_code_input);
     $country_code_db = $country_code_norm !== '' ? ('+' . $country_code_norm) : '';
 
     // build full_text:
-    // when country provided: "Country Name (+44)"
-    // when country missing but code present: "+44"
-    // when neither: empty string
     if ($country !== '') {
         if ($country_code_db !== '') {
             $full_text = $country . ' (' . $country_code_db . ')';
@@ -59,6 +41,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } else {
         $full_text = $country_code_db !== '' ? $country_code_db : '';
+    }
+
+    // normalize phone lines into array, one per non-empty line
+    $lines = preg_split("/\r\n|\n|\r/", $phones_raw);
+    $phones = [];
+    foreach ($lines as $ln) {
+        $ln = trim($ln);
+        if ($ln === '') continue;
+        // keep digits and leading + only
+        $normalized = preg_replace('/[^\d+]/', '', $ln);
+        // if number starts with multiple +, normalize to single +
+        $normalized = preg_replace('/^\++/', '+', $normalized);
+        // if it starts with + and then nothing, skip
+        if ($normalized === '+' || $normalized === '') continue;
+        $phones[] = $normalized;
     }
 
     if (empty($phones)) {
@@ -74,9 +71,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $insertStmt = $pdo->prepare($insertSql);
 
         foreach ($phones as $phone) {
-            // check duplicate phone
+            // Normalize the phone into digits-only for processing (strip + and non-digits)
+            $digits = preg_replace('/\D+/', '', $phone);
+
+            // If user provided a country_code, remove that country code prefix from the number.
+            // Example: country_code_input = "92" and phone="+923001234567" -> stored number "3001234567"
+            if ($country_code_norm !== '') {
+                // if digits start with the country code, strip it
+                if (preg_match('/^' . preg_quote($country_code_norm, '/') . '/', $digits)) {
+                    $local_number = preg_replace('/^' . preg_quote($country_code_norm, '/') . '/', '', $digits);
+                } else {
+                    // also handle numbers that use international '00' prefix in the raw input,
+                    // e.g. 0092xxxxxxxx -> after removing non-digits digits may start with 00 + code
+                    if (preg_match('/^00' . preg_quote($country_code_norm, '/') . '/', $digits)) {
+                        $local_number = preg_replace('/^00' . preg_quote($country_code_norm, '/') . '/', '', $digits);
+                    } else {
+                        // Country code provided but number doesn't start with it: keep digits as-is
+                        $local_number = $digits;
+                    }
+                }
+            } else {
+                // No country code provided: remove common international prefixes (leading + or 00)
+                // but do NOT try to strip a specific country code (to avoid accidental removals).
+                if (preg_match('/^00(\d+)/', $digits, $m)) {
+                    $local_number = $m[1];
+                } else {
+                    $local_number = $digits;
+                }
+            }
+
+            // final validation: ensure we still have digits to store
+            if ($local_number === '' || !preg_match('/^\d+$/', $local_number)) {
+                $failed[] = ['phone' => $phone, 'reason' => 'Invalid after normalization'];
+                continue;
+            }
+
+            // optional: skip very short numbers (likely invalid). Adjust limit if you like.
+            if (strlen($local_number) < 4) {
+                $failed[] = ['phone' => $phone, 'reason' => 'Too short after normalization'];
+                continue;
+            }
+
+            // check duplicate phone (we check using the final stored local number)
             try {
-                $checkStmt->execute([':number' => $phone]);
+                $checkStmt->execute([':number' => $local_number]);
                 $cnt = (int)$checkStmt->fetchColumn();
             } catch (Exception $e) {
                 $failed[] = ['phone' => $phone, 'reason' => 'DB check failed: ' . $e->getMessage()];
@@ -84,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($cnt > 0) {
-                $skipped[] = ['phone' => $phone, 'reason' => 'duplicate phone'];
+                $skipped[] = ['phone' => $local_number, 'reason' => 'duplicate phone'];
                 continue;
             }
 
@@ -97,14 +135,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':full_text' => $full_text,
                     ':country_name' => $country !== '' ? $country : null,
                     ':country_code' => $country_code_db !== '' ? $country_code_db : null,
-                    ':number' => $phone,
+                    ':number' => $local_number,
                     ':belong_to' => 'master'
                 ];
                 $insertStmt->execute($binds);
                 $success++;
-                $created[] = ['phone' => $phone, 'full_text' => $full_text, 'data_value' => $data_value];
+                $created[] = ['phone' => $local_number, 'full_text' => $full_text, 'data_value' => $data_value];
             } catch (Exception $e) {
-                $failed[] = ['phone' => $phone, 'reason' => 'DB insert failed: ' . $e->getMessage()];
+                $failed[] = ['phone' => $local_number, 'reason' => 'DB insert failed: ' . $e->getMessage()];
             }
 
             // small delay to avoid hammering DB (optional)
@@ -185,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="mb-3">
       <label class="form-label">Country Code (e.g. 44 or +44)</label>
       <input name="country_code" class="form-control" value="<?php echo old('country_code'); ?>" placeholder="e.g. +44 or 44" />
-      <div class="form-text">Numeric country code will be normalized and stored with leading + (e.g. +44).</div>
+      <div class="form-text">Numeric country code will be normalized and stored with leading + (e.g. +44). If you enter a country code here, the script will remove that code from every pasted phone before inserting (e.g. +923001234567 → 3001234567).</div>
     </div>
 
     <div class="mb-3">
@@ -197,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="mb-3">
       <label class="form-label">Phone numbers (one per line)</label>
       <textarea name="phones" rows="10" class="form-control" placeholder="+923001234567<?php echo "\n+923009876543"; ?>"><?php echo old('phones'); ?></textarea>
-      <div class="form-text">One phone number per line. Duplicate numbers (existing in DB) will be skipped.</div>
+      <div class="form-text">One phone number per line. Duplicate numbers (existing in DB after normalization/stripping) will be skipped.</div>
     </div>
 
     <!-- optional hidden fields for range -->

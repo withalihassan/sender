@@ -139,7 +139,7 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
       <div class="muted">User: <?= e($user_id ?: 'N/A') ?></div>
     </div>
     <div class="d-flex gap-2">
-      <a class="btn btn-sm btn-primary" href="add_numbers.php?rid=<?= urlencode($range_id) ?>&uid=<?= urlencode($user_id) ?>">Add Bulk</a>
+      <a class="btn btn-sm btn-primary" href="add_numbers.php?rid=<?= urlencode($range_id) ?>&uid=<?= urlencode($user_id) ?>" target="_blank">Add Bulk</a>
       <a class="btn btn-sm btn-outline-secondary" href="add_account.php">Make Account Ready</a>
     </div>
   </div>

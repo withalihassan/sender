@@ -16,7 +16,8 @@ require_once __DIR__ . '/../aws/aws-autoloader.php';
 use Aws\Sns\SnsClient;
 use Aws\Exception\AwsException;
 
-function initSNS($awsKey, $awsSecret, $awsRegion) {
+function initSNS($awsKey, $awsSecret, $awsRegion)
+{
     try {
         $sns = new SnsClient([
             'version'     => 'latest',
@@ -33,7 +34,8 @@ function initSNS($awsKey, $awsSecret, $awsRegion) {
 }
 
 // Fetch phone numbers based solely on the set_id.
-function fetch_numbers($region, $pdo, $set_id = null) {
+function fetch_numbers($region, $pdo, $set_id = null)
+{
     if (empty($region)) {
         return ['error' => 'Region is required.'];
     }
@@ -46,7 +48,7 @@ function fetch_numbers($region, $pdo, $set_id = null) {
         $params[] = $set_id;
     }
     $query .= " ORDER BY RAND() LIMIT 50";
-    
+
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
     $numbers = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -55,7 +57,8 @@ function fetch_numbers($region, $pdo, $set_id = null) {
 
 // Function to send OTP (patch), now with language support.
 // Default language is "es-419" and a mapping applies the proper LanguageCode.
-function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, $language = "es-419") {
+function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, $language = "es-419")
+{
     if (!$id || empty($phone)) {
         return ['status' => 'error', 'message' => 'Invalid phone number or ID.', 'region' => $region];
     }
@@ -69,7 +72,7 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, 
     if ($current_atm <= 0) {
         return ['status' => 'error', 'message' => 'No remaining OTP attempts for this number.', 'region' => $region];
     }
-    
+
     // Map provided language to proper LanguageCode.
     $languageMapping = [
         "en-US"  => "en-US",
@@ -77,11 +80,14 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, 
         // Add more mappings if needed.
     ];
     $languageCode = isset($languageMapping[$language]) ? $languageMapping[$language] : "es-419";
-    
+
     try {
+        // $result = $sns->createSMSSandboxPhoneNumber([
+        //     'PhoneNumber'  => $phone,
+        //     'LanguageCode' => $languageCode,
+        // ]);
         $result = $sns->createSMSSandboxPhoneNumber([
-            'PhoneNumber'  => $phone,
-            'LanguageCode' => $languageCode,
+            'PhoneNumber' => $phone,
         ]);
     } catch (AwsException $e) {
         $errorMsg = $e->getAwsErrorMessage() ?: $e->getMessage();
@@ -96,7 +102,7 @@ function send_otp_single($id, $phone, $region, $awsKey, $awsSecret, $pdo, $sns, 
         }
         return ['status' => 'error', 'message' => "Error sending OTP: " . $errorMsg, 'region' => $region];
     }
-    
+
     try {
         $new_atm = $current_atm - 1;
         $new_status = ($new_atm == 0) ? 'used' : 'fresh';
@@ -117,16 +123,16 @@ if (empty($internal_call)) {
         $awsRegion = trim($_POST['region']);
     }
     $action  = isset($_POST['action']) ? $_POST['action'] : '';
-    
+
     // Retrieve language from POST for non-streaming calls (default to "es-419")
     $language = isset($_POST['language']) ? trim($_POST['language']) : "es-419";
-    
+
     $sns = initSNS($awsKey, $awsSecret, $awsRegion);
     if (is_array($sns) && isset($sns['error'])) {
         echo json_encode(['status' => 'error', 'message' => $sns['error']]);
         exit;
     }
-    
+
     if ($action === 'fetch_numbers') {
         $region = isset($_POST['region']) ? trim($_POST['region']) : '';
         $set_id = isset($_POST['set_id']) ? trim($_POST['set_id']) : '';
@@ -149,4 +155,3 @@ if (empty($internal_call)) {
         exit;
     }
 }
-?>
