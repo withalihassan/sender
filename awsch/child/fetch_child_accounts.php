@@ -64,11 +64,11 @@ foreach ($accounts as $i => $acct) {
     if (empty($acct['added_date'])) {
         // status is NULL or empty
         $ageBadge = "<span class='badge bg-primary'>Fetch me</span>";
-    } elseif($acct['status']=='SUSPENDED'){
-         $ageBadge = "<span class='badge bg-light'>❌</span>";
+    } elseif ($acct['status'] == 'SUSPENDED') {
+        $ageBadge = "<span class='badge bg-light'>❌</span>";
     } elseif ($days >= 6) {
         $ageBadge = "<span class='badge bg-success'>✅ Ready</span>";
-    }  else {
+    } else {
         $ageBadge = "<span class='badge bg-warning text-dark'>⏳ Pending</span>";
     }
 
@@ -87,8 +87,15 @@ foreach ($accounts as $i => $acct) {
     echo "  <td>{$ageBadge}</td>";
     echo "  <td>" . htmlspecialchars($acct['account_id'])   . "</td>";
     echo "  <td>
-            <a href='./bulk_regional_send.php?ac_id=" . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-success btn-sm'>Bulk Regional Send</a>
-            <a href='./brs.php?ac_id="               . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-info btn-sm'>BRS</a>
+            <div class='btn-group d-inline-flex' role='group'>
+            <a href='./bulk_regional_send.php?ac_id=" . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-success btn-sm'>Full Sndr</a>
+            <a href='./full_sender_v2.php?ac_id=" . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-info btn-sm'>V2</a>
+            </div>
+            <div class='btn-group d-inline-flex' role='group'>
+            <a href='./brs.php?ac_id="               . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-success btn-sm'>Half Sndr</a>
+            <a href='./half_sender_v2.php?ac_id="               . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-info btn-sm'>V2</a>
+            </div>
+          
             <a href='./enable_regions.php?ac_id="    . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-secondary btn-sm'>E-R</a>
             <a href='./clear_single.php?ac_id="      . urlencode($acct['account_id']) . "&parrent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-warning btn-sm'>Clear</a>
             <a href='child_account.php?child_id="    . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-primary btn-sm'>Setup</a>
