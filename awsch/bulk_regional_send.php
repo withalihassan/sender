@@ -72,8 +72,9 @@ if (isset($_GET['stream'])) {
   }
   $set_id = intval($_GET['set_id']);
 
-  // Retrieve language parameter from GET (defaulting to Spanish Latin America "es-419")
-  $language = isset($_GET['language']) ? trim($_GET['language']) : "es-419";
+  // Retrieve language parameter from GET.
+  // Treat empty string as "no selection" => null (so LanguageCode won't be sent to AWS).
+  $language = (isset($_GET['language']) && $_GET['language'] !== '') ? trim($_GET['language']) : null;
 
   header('Content-Type: text/event-stream');
   header('Cache-Control: no-cache');
@@ -196,9 +197,8 @@ if (isset($_GET['stream'])) {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Failed: " . $sns['error']);
         continue;
       }
-      // Pass the language parameter to send_otp_single
-      // $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns, $language);
-      $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns);
+      // Pass the language parameter (may be null) so handler decides whether to include LanguageCode.
+      $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns, $language);
       if ($result['status'] === 'success') {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Sent");
         $totalSuccess++;
@@ -235,8 +235,8 @@ if (isset($_GET['stream'])) {
       sendSSE("STATUS", "Region $region encountered an error. Waiting 5 seconds...");
       sleep(5);
     } else if ($otpSentInThisRegion) {
-      sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 15 seconds...");
-      sleep(15);
+      sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 5 seconds...");
+      sleep(5);
     } else {
       sendSSE("STATUS", "Completed OTP sending for region $region. Waiting 5 seconds...");
       sleep(5);
@@ -254,7 +254,7 @@ if (isset($_GET['stream'])) {
 
 <head>
   <meta charset="UTF-8">
-  <title><?php echo $id; ?> | Bulk Regional Patch Sending</title>
+  <title><?php echo $id; ?> | Full Sender Bulk Regional Patch Sending</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
@@ -393,7 +393,7 @@ if (isset($_GET['stream'])) {
     <div class="row">
       <div class="col-md-4">
         <div class="container">
-          <h1>Region Enable Box</h1>
+          <h2>Full sender Region Enable Box</h2>
           <button id="enableRegionsButton" class="btn btn-primary mb-3">
             Enable All Opt‑In Regions
           </button>
@@ -412,7 +412,7 @@ if (isset($_GET['stream'])) {
       </div>
       <div class="col-md-8">
         <div class="container">
-          <h1>Bulk Regional Patch Sending</h1>
+          <h1> Full Sender Bulk Regional Patch Sending</h1>
           <div class="button-row">
             <button id="updateButton">Mark as Completed</button>
             <button id="stopButton" style="background:#dc3545;">Stop Process</button>
@@ -430,7 +430,9 @@ if (isset($_GET['stream'])) {
                   <option value="">-- Select a Set --</option>
                   <?php foreach ($sets as $set): ?>
                     <option value="<?php echo $set['id']; ?>"><?php echo htmlspecialchars($set['set_name']); ?></option>
-                  <?php endforeach; ?>
+                  <?php
+                  endforeach;
+                  ?>
                 </select>
               </div>
               <div>
@@ -476,9 +478,9 @@ if (isset($_GET['stream'])) {
               <div>
                 <label for="language_select">Select Language:</label>
                 <select id="language_select" name="language_select">
-                  <option value="" selected>No language selected</option>
-                  <option value="es-419">Spanish Latin America New</option>
-                  <option value="it-IT" >Default-it</option>
+                  <option value="" >No language selected</option>
+                  <option value="it-IT" selected>Default-it</option>
+                  <option value="es-419">Spanish Latin America</option>
                   <!-- Add additional languages as needed -->
                 </select>
               </div>
@@ -491,7 +493,7 @@ if (isset($_GET['stream'])) {
 
           <!-- Display area for allowed numbers -->
           <label for="numbers">Allowed Phone Numbers (from database):</label>
-          <textarea id="numbers" name="numbers" rows="10" readonly></textarea>
+          <textarea id="numbers" name="numbers" rows="5" readonly></textarea>
           <!-- Status messages -->
           <div id="process-status" class="message"></div>
           <!-- Live Counters -->

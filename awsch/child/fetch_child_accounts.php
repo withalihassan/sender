@@ -59,14 +59,26 @@ foreach ($accounts as $i => $acct) {
     } else {
         $days = 0;
     }
-
+    //Age calculation strted 
+    if ($acct['status'] == 'ACTIVE') {
+        if ($acct['created_at']  != NULL) {
+            $td_created_at = new DateTime($acct['created_at']);
+            $td_current_date = new DateTime();
+            $diff = $td_created_at->diff($td_current_date);
+            $child_ac_Age = $diff->format('%a');
+        } else {
+            $child_ac_Age =  "<span>error1</span>";
+        }
+    } else {
+        $child_ac_Age =  "<span>error2</span>";
+    }
     // Age column badge
     if (empty($acct['added_date'])) {
         // status is NULL or empty
         $ageBadge = "<span class='badge bg-primary'>Fetch me</span>";
     } elseif ($acct['status'] == 'SUSPENDED') {
         $ageBadge = "<span class='badge bg-light'>❌</span>";
-    } elseif ($days >= 6) {
+    } elseif ($child_ac_Age >= 4) {
         $ageBadge = "<span class='badge bg-success'>✅ Ready</span>";
     } else {
         $ageBadge = "<span class='badge bg-warning text-dark'>⏳ Pending</span>";

@@ -63,35 +63,37 @@ if (isset($_GET['stream'])) {
     }
     $set_id = intval($_GET['set_id']);
     $selectedRegion = $_GET['region'];
-    // Retrieve language from GET; default to "es-419" if not provided.
-    $language = isset($_GET['language']) ? trim($_GET['language']) : "es-419";
+
+    // Retrieve language from GET.
+    // Treat empty string as "no selection" => null (so LanguageCode won't be sent to AWS).
+    $language = (isset($_GET['language']) && $_GET['language'] !== '') ? trim($_GET['language']) : null;
 
     // Turn off output buffering and enable implicit flush.
     while (ob_get_level()) {
         ob_end_clean();
     }
     ob_implicit_flush(true);
-    
+
     // Send SSE headers.
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache');
-    
+
     function sendSSE($type, $message) {
         echo "data:" . $type . "|" . str_replace("\n", "\\n", $message) . "\n\n";
         @flush();
     }
-    
+
     sendSSE("STATUS", "Starting Bulk Regional Patch Process for Set ID: " . $set_id . " in region: " . $selectedRegion);
     $region = $selectedRegion;
     sendSSE("STATUS", "Processing region: " . $region);
     sendSSE("COUNTERS", "Processing region: " . $region);
-    
+
     $otpSentInThisRegion = false;
     $verifDestError = false;
-    
+
     $internal_call = true;
     require_once('region_ajax_handler_chk.php');
-    
+
     // Fetch phone numbers based solely on the set_id for the selected region.
     $numbersResult = fetch_numbers($region, $pdo, $set_id);
     if (isset($numbersResult['error'])) {
@@ -105,7 +107,7 @@ if (isset($_GET['stream'])) {
         sleep(5);
         exit;
     }
-    
+
     // Build OTP tasks.
     // If six or more numbers exist, add the first five once and the sixth number twice (7 tasks total).
     if (count($allowedNumbers) >= 6) {
@@ -122,7 +124,7 @@ if (isset($_GET['stream'])) {
             $otpTasks[] = array('id' => $number['id'], 'phone' => $number['phone_number']);
         }
     }
-    
+
     // Process OTP tasks.
     foreach ($otpTasks as $task) {
         sendSSE("STATUS", "[$region] Sending Patch...");
@@ -131,9 +133,8 @@ if (isset($_GET['stream'])) {
             sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Failed: " . $sns['error']);
             continue;
         }
-        // Pass the language parameter to send_otp_single.
-        // $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns, $language);
-        $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns);
+        // Pass $language (may be null) and let handler include LanguageCode only if provided.
+        $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $pdo, $sns, $language);
         if ($result['status'] === 'success') {
             sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Sent");
             $otpSentInThisRegion = true;
@@ -168,7 +169,7 @@ if (isset($_GET['stream'])) {
         sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 5 seconds...");
         sleep(3);
     }
-    
+
     $summary = "Final Summary:<br>Patch sent in region: $region<br>";
     sendSSE("SUMMARY", $summary);
     sendSSE("STATUS", "Process Completed.");
@@ -245,15 +246,16 @@ if (isset($_GET['stream'])) {
         </div>
         <div>
           <label for="language">Select Language:</label>
-          <select id="language" name="language" required>
-            <option value="" selected>No language selected</option>
-            <option value="en-US">English (US)</option>
+          <select id="language" name="language">
+            <option value="" >No language selected</option>
+            <option value="it-IT" selected>Default IT</option>
+            <!-- <option value="en-US">English (US)</option> -->
             <option value="es-419" >Spanish (Latin America)</option>
             <!-- Add more languages if needed -->
           </select>
         </div>
       </div>
-      
+
       <!-- Inline group for AWS Credentials -->
       <div class="inline-group">
         <div>
@@ -265,7 +267,7 @@ if (isset($_GET['stream'])) {
           <input type="text" id="awsSecret" name="awsSecret" value="<?php echo $aws_secret; ?>" disabled>
         </div>
       </div>
-      
+
       <button type="button" id="start-bulk-regional-otp">Start Bulk Patch Process for Selected Set</button>
     </form>
 
@@ -302,7 +304,7 @@ if (isset($_GET['stream'])) {
   <script>
     $(document).ready(function() {
       var acId = "<?php echo $id; ?>";
-      
+
       // Fetch allowed numbers when set or region changes.
       $('#set_id, #region, #language').change(function() {
         var set_id = $('#set_id').val();
@@ -338,7 +340,7 @@ if (isset($_GET['stream'])) {
           }
         });
       });
-      
+
       $('#start-bulk-regional-otp').click(function() {
         var set_id = $('#set_id').val();
         var region = $('#region').val();
@@ -353,8 +355,8 @@ if (isset($_GET['stream'])) {
         $('#sent-numbers-table tbody').html('');
         $('#summary').html('');
         $('#counters').html('');
-        
-        // Start SSE connection; pass language as GET parameter.
+
+        // Start SSE connection; pass language as GET parameter (empty string will be treated as null server-side).
         var sseUrl = "chk_quality.php?ac_id=" + acId + "&set_id=" + set_id + "&region=" + region + "&language=" + language + "&stream=1";
         var evtSource = new EventSource(sseUrl);
         evtSource.onmessage = function(e) {
@@ -384,7 +386,7 @@ if (isset($_GET['stream'])) {
           evtSource.close();
         };
       });
-      
+
       // Handle worth_type update buttons.
       $('#mark-full').click(function() {
         $.ajax({
@@ -404,7 +406,7 @@ if (isset($_GET['stream'])) {
           }
         });
       });
-      
+
       $('#mark-half').click(function() {
         $.ajax({
           url: "chk_quality.php?ac_id=" + acId,
