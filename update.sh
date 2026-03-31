@@ -12,3 +12,4 @@ LOG="/var/www/sender/update.log"
 
   echo "Updated successfully"
 } >> "$LOG" 2>&1
+
