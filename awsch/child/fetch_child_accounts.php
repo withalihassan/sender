@@ -38,13 +38,14 @@ if (empty($accounts)) {
 
 // loop and output rows
 foreach ($accounts as $i => $acct) {
+    $child_id = $acct['account_id'];
     // Status badge
     switch (strtoupper($acct['status'] ?? '')) {
         case 'ACTIVE':
             $statusBadge = "<span class='badge bg-success'>Active</span>";
             break;
         case 'SUSPENDED':
-            $statusBadge = "<span class='badge bg-danger'>Suspended</span>";
+            $statusBadge = "<a href='./child/remove_child_internally.php?prnt_id=$parentId&child_id=$child_id' target='_blank' ><span class='badge bg-danger'>Suspended</span></a>";
             break;
         default:
             $statusBadge = "<span class='badge bg-secondary'>Unknown</span>";
