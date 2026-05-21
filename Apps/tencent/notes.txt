@@ -1,0 +1,6 @@
+IKID55tVwBD4rSr24tVv9SfmhRyNbdWEk6FB
+mMrDPPDrJYcU9i7MODpHWYO3YrxqY6Sa	
+
+
+# update the sub-user "test124" phone to +86 13800138000
+tccli cam UpdateUser  --Name alihasan4  --PhoneNum 82156109 --CountryCode 227  --output json
