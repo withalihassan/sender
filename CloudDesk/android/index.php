@@ -1,9 +1,9 @@
 <?php
 // session.php, header.php, db.php and aws-autoloader.php should be in your include paths
-include "../session.php";
-include "../header.php";
-include('../db.php');
-require '../aws/aws-autoloader.php';
+include "../../session.php";
+include "../../header.php";
+include('../../db.php');
+require '../../aws/aws-autoloader.php';
 
 // Initialize message variable for response messages (if needed)
 $message = "";
@@ -84,7 +84,7 @@ if (isset($_POST['submit'])) {
     <div class="container-fluid" style="padding: 1% 4% 4% 4%;">
         <!-- Table Section 1: Accounts List -->
         <div class="table-section mb-5">
-            <h2>Nodes List <a href="./android/index.php" class="btn btn-dark" target="_blank">Android Cloud</a></h2>
+            <h2>Android Nodes List</h2>
             <!-- Div for check status messages -->
             <div class="status-message mb-2"></div>
             <table id="accountsTable1" class="display table table-bordered">
@@ -116,7 +116,7 @@ if (isset($_POST['submit'])) {
                         echo "<td>
                             <div class='d-inline-flex'>
                                 <button class='btn btn-primary btn-sm check-status-btn' data-id='" . $row['id'] . "'>Chk Status</button>
-                                <a href='create.php?parent_id=" . $row['account_id'] . "' target='_blank'><button class='btn btn-success btn-sm'>Create Desk</button></a>
+                                <a href='create.php?parent_id=" . $row['account_id'] . "' target='_blank'><button class='btn btn-success btn-sm'>Create Android  Desk</button></a>
                             </div>
                           </td>";
                         echo "</tr>";
