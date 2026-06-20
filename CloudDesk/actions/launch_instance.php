@@ -33,8 +33,8 @@ if ($ak === '' || $sk === '' || $region === '' || $instanceType === '') {
 
 // minimal Windows AMI map - extend as needed
 $amiMap = [
-    'us-east-1'       => 'ami-06b5375e3af24939c', // US East (N. Virginia)
-    'us-east-2'       => 'ami-0c84451959d149095', // US East (Ohio)
+    'us-east-1'       => 'ami-09ec5d80b0e576a78', // US East (N. Virginia)
+    'us-east-2'       => 'ami-06d43f2ee5b79ba4a', // US East (Ohio)
     'us-west-1'       => 'ami-072fcf26b3b4a134a', // US West (N. California)
     'us-west-2'       => 'ami-07a73e7966fb8ae9d', // US West (Oregon)
     'af-south-1'      => 'ami-0ff39bdcfefaddfc8', // Africa (Cape Town)
