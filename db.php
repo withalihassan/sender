@@ -25,18 +25,41 @@
 // Mumbai Server DB
 // Master password = 3CFz8no5NSxCXiDOMz8g
 // Master username = admin 
+// // Db EndPoint = database-1.cjiuwqmaw256.ap-south-1.rds.amazonaws.com
+// if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '98.83.29.45') {
+//     // When accessed via http://98.83.29.45, use 'localhost' for the DB connection.
+//     $host = 'localhost';
+//     $username = 'root';
+// } else {
+//     // Otherwise, use the remote IP address.
+//     $host = 'database-1.cjiuwqmaw256.ap-south-1.rds.amazonaws.com';
+//     $username = 'admin';
+// }
+
+// $dbname   = 'sp_sender';
+// $password = '3CFz8no5NSxCXiDOMz8g';
+
+// try {
+//     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
+//     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+// } catch(PDOException $e) {
+//     die("Database connection failed: " . $e->getMessage());
+// }
+
+//=================================== new EC2 Singapore server password and endpoint 3CFz8no5NSxCXiDOMz8g
+// Master password = 3CFz8no5NSxCXiDOMz8g
+// Master username = admin 
 // Db EndPoint = database-1.cjiuwqmaw256.ap-south-1.rds.amazonaws.com
-if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '98.83.29.45') {
-    // When accessed via http://98.83.29.45, use 'localhost' for the DB connection.
+
+if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '54.151.244.24') {
+    // When accessed via http://13.220.207.140, use 'localhost' for the DB connection.
     $host = 'localhost';
-    $username = 'root';
 } else {
     // Otherwise, use the remote IP address.
-    $host = 'database-1.cjiuwqmaw256.ap-south-1.rds.amazonaws.com';
-    $username = 'admin';
+    $host = '54.151.244.24';
 }
-
 $dbname   = 'sp_sender';
+$username = 'admin';
 $password = '3CFz8no5NSxCXiDOMz8g';
 
 try {

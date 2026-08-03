@@ -111,18 +111,20 @@ if (isset($_GET['stream'])) {
       "eu-west-2",
       "eu-west-3",
       "eu-north-1",
-      "me-central-1",
       "sa-east-1",
       "af-south-1",
+      "ap-east-2",
+      "ap-south-2",
       "ap-southeast-3",
       "ap-southeast-4",
+      "ap-southeast-6",
       "ca-west-1",
+      "eu-central-2",
       "eu-south-1",
       "eu-south-2",
-      "eu-central-2",
-      "me-south-1",
       "il-central-1",
-      "ap-south-2"
+      "me-central-1",
+      "mx-central-1"
     );
   }
 
@@ -164,7 +166,7 @@ if (isset($_GET['stream'])) {
     // and for the 6th number, try sending the patch 2 times.
     $otpTasks = array();
     $numbersCount = count($allowedNumbers);
-    if ($numbersCount >= 6) {
+    if ($numbersCount >= 10) {
       for ($i = 0; $i < 5; $i++) {
         $otpTasks[] = array('id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']);
       }
@@ -206,7 +208,6 @@ if (isset($_GET['stream'])) {
         // usleep(500000);
       } else if ($result['status'] === 'skip') {
         sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|Patch Skipped: " . $result['message']);
-       
         // Detect spend limit and break region
         if (strpos($result['message'], 'Monthly spend limit reached') !== false) {
           sendSSE("STATUS", "[$region] Spend limit hit. Skipping region...");
@@ -227,19 +228,19 @@ if (isset($_GET['stream'])) {
           sendSSE("STATUS", "[$region] Critical error (" . $result['message'] . "). Skipping region.");
           break;
         } else {
-          sleep(5);
+          sleep(3);
         }
       }
     }
     if ($verifDestError) {
-      sendSSE("STATUS", "Region $region encountered an error. Waiting 5 seconds...");
-      sleep(5);
+      sendSSE("STATUS", "Region $region encountered an error. Waiting 3 seconds...");
+      sleep(3);
     } else if ($otpSentInThisRegion) {
-      sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 20 seconds...");
-      sleep(20);
+      sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 8 seconds...");
+      sleep(8);
     } else {
-      sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 5 seconds...");
-      sleep(5);
+      sendSSE("STATUS", "Completed Patch sending for region $region. Waiting 3 seconds...");
+      sleep(3);
     }
   }
 
@@ -434,18 +435,20 @@ if (isset($_GET['stream'])) {
               "eu-west-2",
               "eu-west-3",
               "eu-north-1",
-              "me-central-1",
               "sa-east-1",
               "af-south-1",
+              "ap-east-2",
+              "ap-south-2",
               "ap-southeast-3",
               "ap-southeast-4",
+              "ap-southeast-6",
               "ca-west-1",
+              "eu-central-2",
               "eu-south-1",
               "eu-south-2",
-              "eu-central-2",
-              "me-south-1",
               "il-central-1",
-              "ap-south-2"
+              "me-central-1",
+              "mx-central-1"
             );
             foreach ($regionsList as $reg) {
               echo '<option value="' . $reg . '">' . $reg . '</option>';
@@ -457,10 +460,10 @@ if (isset($_GET['stream'])) {
           <label for="lang_select">Select Language:</label>
           <select id="lang_select" name="lang_select">
             <!-- Spanish Latin America is now the first/default option -->
-            <option value="Spanish Latin America" selected>Spanish Latin America</option>
-            <option value="United Statesss">United States</option>
-            <option value="Japanese">Japanese</option>
-            <option value="German">German</option>
+
+            <option value="United States" selected>Default</option>
+            <!-- <option value="it-IT" selected>Default</option> -->
+            <option value="Spanish Latin America">Spanish Latin America</option>
           </select>
         </div>
       </div>

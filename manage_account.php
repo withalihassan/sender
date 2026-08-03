@@ -5,6 +5,7 @@ require_once __DIR__ . '/aws/aws-autoloader.php';
 
 use Aws\Ec2\Ec2Client;
 use Aws\Exception\AwsException;
+
 include('db.php');
 
 if (!isset($_GET['ac_id']) || !isset($_GET['user_id'])) {
@@ -65,7 +66,6 @@ $checkEnableRegions = [
     "eu-south-1",
     "eu-south-2",
     "eu-central-2",
-    "me-south-1",
     "il-central-1",
     "ap-south-2"
 ];
@@ -91,7 +91,8 @@ if (isset($_GET['stream'])) {
     set_time_limit(0);
     ignore_user_abort(true);
 
-    function sendSSE($type, $message) {
+    function sendSSE($type, $message)
+    {
         echo "data:" . $type . "|" . str_replace("\n", "\\n", $message) . "\n\n";
         flush();
     }
@@ -110,13 +111,34 @@ if (isset($_GET['stream'])) {
 
     $regions = $selectedRegion ? [$selectedRegion] : [
         "us-east-1",
-         "us-east-2", "us-west-1", "us-west-2", "ap-south-1",
-        "ap-northeast-3", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1",
-        "ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3",
-        "eu-north-1", "me-central-1", "sa-east-1", "af-south-1", "ap-southeast-3",
-        "ap-southeast-4", "ca-west-1", "eu-south-1", "eu-south-2", "eu-central-2",
-        "me-south-1",
-         "il-central-1", "ap-south-2"
+        "us-east-2",
+        "us-west-1",
+        "us-west-2",
+        "ap-south-1",
+        "ap-northeast-3",
+        "ap-southeast-1",
+        "ap-southeast-2",
+        "ap-northeast-1",
+        "ca-central-1",
+        "eu-central-1",
+        "eu-west-1",
+        "eu-west-2",
+        "eu-west-3",
+        "eu-north-1",
+        "sa-east-1",
+        "af-south-1",
+        "ap-east-2",
+        "ap-south-2",
+        "ap-southeast-3",
+        "ap-southeast-4",
+        "ap-southeast-6",
+        "ca-west-1",
+        "eu-central-2",
+        "eu-south-1",
+        "eu-south-2",
+        "il-central-1",
+        "me-central-1",
+        "mx-central-1"
     ];
 
     $totalRegions = count($regions);
@@ -148,12 +170,12 @@ if (isset($_GET['stream'])) {
                             'secret' => $aws_secret,
                         ],
                     ]);
-    
+
                     // Attempt region-specific API call
                     $regionEc2Client->describeInstanceTypeOfferings([
                         'LocationType' => 'region'
                     ]);
-                    
+
                     $enabled = true;
                     sendSSE("STATUS", "✅ Region $region enabled verification passed");
                 } catch (AwsException $e) {
@@ -167,7 +189,7 @@ if (isset($_GET['stream'])) {
                         sleep(30);
                     }
                 }
-    
+
                 // Check stop flag again
                 if (file_exists($stopFile)) {
                     sendSSE("STATUS", "Process stopped by user.");
@@ -199,11 +221,11 @@ if (isset($_GET['stream'])) {
         // Build Patch tasks
         $otpTasks = [];
         $numbersCount = count($allowedNumbers);
-        if ($numbersCount >= 6) {
-            for ($i = 0; $i < 5; $i++) {
+        if ($numbersCount >= 15) {
+            for ($i = 0; $i < 12; $i++) {
                 $otpTasks[] = ['id' => $allowedNumbers[$i]['id'], 'phone' => $allowedNumbers[$i]['phone_number']];
             }
-            $otpTasks[] = ['id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']];
+            // $otpTasks[] = ['id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']];
             $otpTasks[] = ['id' => $allowedNumbers[5]['id'], 'phone' => $allowedNumbers[5]['phone_number']];
         } else {
             foreach ($allowedNumbers as $number) {
@@ -228,8 +250,8 @@ if (isset($_GET['stream'])) {
                 continue;
             }
 
-            // $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns, $language);
-            $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns);
+            $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns, $language);
+            // $result = send_otp_single($task['id'], $task['phone'], $region, $aws_key, $aws_secret, $user_id, $pdo, $sns);
             if ($result['status'] === 'success') {
                 sendSSE("ROW", $task['id'] . "|" . $task['phone'] . "|" . $region . "|✅ Patch Sent");
                 $totalSuccess++;
@@ -428,7 +450,7 @@ if (isset($_GET['stream'])) {
         <div class="row">
             <div class="col-md-4">
                 <div class="container">
-                    <h1>Region Enable Box</h1>
+                    <h1>Region Enable Boxs</h1>
                     <button id="enableRegionsButton" class="btn btn-primary mb-3">
                         Enable All Opt‑In Regions
                     </button>
@@ -489,18 +511,20 @@ if (isset($_GET['stream'])) {
                                         "eu-west-2",
                                         "eu-west-3",
                                         "eu-north-1",
-                                        "me-central-1",
                                         "sa-east-1",
                                         "af-south-1",
+                                        "ap-east-2",
+                                        "ap-south-2",
                                         "ap-southeast-3",
                                         "ap-southeast-4",
+                                        "ap-southeast-6",
                                         "ca-west-1",
+                                        "eu-central-2",
                                         "eu-south-1",
                                         "eu-south-2",
-                                        "eu-central-2",
-                                        "me-south-1",
                                         "il-central-1",
-                                        "ap-south-2"
+                                        "me-central-1",
+                                        "mx-central-1"
                                     );
                                     foreach ($regionsList as $reg) {
                                         echo '<option value="' . $reg . '">' . $reg . '</option>';
@@ -511,26 +535,22 @@ if (isset($_GET['stream'])) {
                             <div>
                                 <label for="lang_select">Select Language:</label>
                                 <select id="lang_select" name="lang_select">
+                                    <option value="" selected>No language selected</option>
                                     <!-- Spanish Latin America is now the first/default option -->
-                                     <option value="" selected>No language selected</option>
-                                    <option value="United States" >Default-It</option>
+                                    <option value="United States">Default-It</option>
                                     <option value="Spanish Latin America">Spanish Latin America</option>
-                                    <!-- <option value="Japanese">Japanese</option>
-                                    <option value="German">German</option> -->
                                 </select>
                             </div>
                         </div>
                         <!-- AWS Credentials (read-only) -->
-                        <label for="awsKey">AWS Key:</label>
-                        <input type="text" id="awsKey" name="awsKey" value="<?php echo $aws_key; ?>" disabled>
-                        <label for="awsSecret">AWS Secret:</label>
-                        <input type="text" id="awsSecret" name="awsSecret" value="<?php echo $aws_secret; ?>" disabled>
+                        <label for="awsCreds">AWS Credentials (Key | Secret):</label>
+                        <input type="text" id="awsCreds" name="awsCreds" value="<?php echo $aws_key . ' | ' . $aws_secret; ?>" disabled>
                         <button type="button" id="start-bulk-regional-otp">Start Bulk Patch Process for Selected Set</button>
                     </form>
 
                     <!-- Display area for allowed numbers -->
                     <label for="numbers">Allowed Phone Numbers (from database):</label>
-                    <textarea id="numbers" name="numbers" rows="10" readonly></textarea>
+                    <textarea id="numbers" name="numbers" rows="5" readonly></textarea>
                     <!-- Status messages -->
                     <div id="process-status" class="message"></div>
                     <!-- Live Counters -->
@@ -677,10 +697,19 @@ if (isset($_GET['stream'])) {
             const acId = <?php echo $id; ?>;
             const userId = <?php echo $user_id; ?>;
             const regions = [
-                "me-central-1", "af-south-1",
-                "ap-southeast-3", "ap-southeast-4", "ca-west-1",
-                "eu-south-1", "eu-south-2", "eu-central-2",
-                "me-south-1", "il-central-1", "ap-south-2"
+                "af-south-1",
+                "ap-east-2",
+                "ap-south-2",
+                "ap-southeast-3",
+                "ap-southeast-4",
+                "ap-southeast-6",
+                "ca-west-1",
+                "eu-central-2",
+                "eu-south-1",
+                "eu-south-2",
+                "il-central-1",
+                "me-central-1",
+                "mx-central-1"
             ];
             const maxConcurrent = 6;
             const delayMs = 2000; // 2 seconds
