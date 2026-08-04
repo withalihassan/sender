@@ -66,7 +66,7 @@ try {
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title><?php echo $_GET['CHID']; ?> Child Manager</title>
+    <title><?php echo $_GET['ac_id']; ?> Child Manager</title>
 
     <!-- Bootstrap CSS -->
     <link
