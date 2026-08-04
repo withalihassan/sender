@@ -3,12 +3,10 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-
 // Get child_id and parent_id safely
 $child_id  = $_GET['ac_id']      ?? '';
 $parent_id = $_GET['parent_id'] ?? '';
 $session_user_id = $_GET['user_id'] ?? '';
-
 
 if (empty($child_id) && empty($parent_id)) {
     die("Invalid request. Missing parameters.");
@@ -68,7 +66,7 @@ try {
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Child Manager</title>
+    <title><?php echo $_GET['CHID']; ?> Child Manager</title>
 
     <!-- Bootstrap CSS -->
     <link
@@ -106,7 +104,7 @@ try {
             System response will appear here...
         </div>
 
-        <div class="row g-3 mb-3">
+        <div class="row g-3 mb-2">
             <div class="col-md-2">
                 <input type="hidden" id="aws_access_key" value="<?php echo $aws_access_key; ?>">
                 <input type="hidden" id="aws_secret_key" value="<?php echo $aws_secret_key; ?>">
@@ -148,11 +146,6 @@ try {
                     onclick="checkAccountStatus()">Account Status</button>
             </div>
             <div class="col-md-2">
-                <button
-                    class="btn btn-warning btn-custom"
-                    onclick="addAdminUser()">Create Login</button>
-            </div>
-            <div class="col-md-2">
                 <button id="leaveBtn"
                     class="btn btn-warning btn-custom"
                     onclick="leaveOrganization()">
@@ -160,17 +153,24 @@ try {
                 </button>
             </div>
             <div class="col-md-2">
+                <button
+                    class="btn btn-warning btn-custom"
+                    onclick="addAdminUser()">Add Admin User</button>
+            </div>
+            <div class="col-md-2">
                 <button class="btn btn-warning btn-custom" onclick="checkMembership()">
-                    Check Script Status
+                    Check Membership
                 </button>
             </div>
+
+
         </div>
         <hr>
         <div class="row mb-2">
             <div class="col-md-2">
                 <select id="regionSelect" class="form-select">
-                    <option value="us-east-1">US East (N. Virginia)</option>
                     <option value="us-east-2">US East (Ohio)</option>
+                    <option value="us-east-1">US East (N. Virginia)</option>
                     <option value="us-west-1">US West (N. California)</option>
                     <option value="us-west-2">US West (Oregon)</option>
                     <hr>
@@ -193,13 +193,13 @@ try {
             </div>
             <div class="col-md-2">
                 <select id="instanceType" class="form-select">
-                    <option value="c7a.4xlarge">C7 32v</option>
+                    <option value="t2.micro">t2.micro</option>
+                    <option value="c7a.4xlarge">C7 16v</option>
                     <option value="c7a.2xlarge">c7a 8V</option>
                     <option value="c7a.xlarge">C7 4v</option>
-                    <option value="t2.micro">t2.micro</option>
                     <option value="c5a.xlarge">c5a.xlarge</option>
                     <option value="c7a.8xlarge">c7a.8xlarge</option>
-                    <option value="c7i.xlarge">c7i.xlarge</option>
+                    <option value="c7i.2xlarge">c7i.xlarge</option>
                     <option value="c7i.8xlarge">c7i.8xlarge</option>
                 </select>
             </div>
@@ -222,6 +222,28 @@ try {
                 </button>
             </div>
         </div>
+
+        <hr>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered text-center align-middle" id="instanceTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Instance ID</th>
+                        <th>Region</th>
+                        <th>Instance Type</th>
+                        <th>Launch Type</th>
+                        <th>State</th>
+                        <th>Created At</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <hr>
+        <hr>
         <?php
         // 1) Fetch latest IAM admin user for this child account
         $stmt = $pdo->prepare(
@@ -287,14 +309,22 @@ try {
                 </div>
 
                 <div class="col-md-4 mb-3">
-                    <button id="deliverBtn" class="btn btn-danger">canceled</button>
+                    <button id="deliverBtn" class="btn btn-primary">Deliver</button>
                     <button id="addInCurrentUser" class="btn btn-success">Add in current user</button>
                 </div>
             </div>
         <?php endif; ?>
-
+        <!-- <div class="col-md-4 mb-3">
+            <label class="form-label">1st Address Changeing Link</label>
+            <div class="input-group">
+                <input type="text"
+                    class="form-control"
+                    readonly
+                    value="https://us-east-1.console.aws.amazon.com/billing/home?region=us-east-2#/account">
+            </div>
+        </div> -->
         <div class="col-md-4 mb-3">
-            <label class="form-label">Details Entry Link</label>
+            <label class="form-label">2nd Details Entry Link</label>
             <div class="input-group">
                 <input type="text"
                     class="form-control"
@@ -326,151 +356,6 @@ try {
                 aws_access_key: awsAccessKey,
                 aws_secret_key: awsSecretKey
             }, resp => $("#response").html(resp));
-        }
-
-        function launchInAllRegions() {
-            launchInstance("all");
-        }
-
-        function launchInSelectedRegion() {
-            launchInstance($("#regionSelect").val());
-        }
-
-        function launchInstance(region) {
-            var awsAccessKey = $("#aws_access_key").val();
-            var awsSecretKey = $("#aws_secret_key").val();
-            var instanceType = $("#instanceType").val();
-            var marketType = $("#marketType").val();
-            console.log(awsAccessKey);
-
-            $.post("child_actions/launch_instance.php", {
-                aws_access_key: awsAccessKey,
-                aws_secret_key: awsSecretKey,
-                region: region,
-                instance_type: instanceType,
-                market_type: marketType
-            }, function(response) {
-                $("#response").html(response);
-            });
-            console.log(region);
-        }
-
-        function launchRigInSelectedRegion() {
-            launchRig($("#regionSelect").val());
-        }
-
-        function launchRig(region) {
-            var awsAccessKey = $("#aws_access_key").val();
-            var awsSecretKey = $("#aws_secret_key").val();
-            var instanceType = $("#instanceType").val();
-            var marketType = $("#marketType").val();
-            console.log(awsAccessKey);
-
-            $.post("child_actions/launch_rig.php", {
-                aws_access_key: awsAccessKey,
-                aws_secret_key: awsSecretKey,
-                region: region,
-                instance_type: instanceType,
-                market_type: marketType
-            }, function(response) {
-                $("#response").html(response);
-            });
-            console.log(region);
-        }
-
-        function fetchInstances(childId) {
-            $.get("child_actions/fetch_instances.php", {
-                child_id: childId
-            }, function(data) {
-                $("#instanceTable tbody").html(data);
-            }).fail(function() {
-                console.error("Failed to fetch instances.");
-            });
-        }
-        $(document).ready(function() {
-            var childId = <?php echo isset($child_id) ? json_encode($child_id) : 'null'; ?>;
-
-            if (childId !== null) {
-                fetchInstances(childId);
-            } else {
-                console.error("childId is not defined.");
-            }
-        });
-        $(document).on('click', '.terminate', function() {
-            var instanceId = $(this).data('instance-id');
-            var recordId = $(this).data('id');
-            var region = $(this).data('region');
-            var accessKey = $(this).data('access-key'); // Access Key
-            var secretKey = $(this).data('secret-key'); // Secret Key
-
-            // Confirm termination
-            if (confirm("Are you sure you want to terminate this instance?")) {
-                // Send a request to terminate the instance
-                $.post("child_actions/terminate_instance.php", {
-                    instance_id: instanceId,
-                    record_id: recordId,
-                    region: region,
-                    access_key: accessKey,
-                    secret_key: secretKey
-                }, function(response) {
-                    if (response.success) {
-                        alert("Instance terminated successfully.");
-                        // Remove the terminated row from the table
-                        $("button[data-id='" + recordId + "']").closest('tr').remove();
-                    } else {
-                        alert("Error terminating instance: " + response.message);
-                    }
-                }, 'json');
-            }
-        });
-
-        // JavaScript: Replace your existing addAdminUser() function with this leaveOrganization() function.
-        // Make sure jQuery is loaded on the page.
-
-        function addAdminUser() {
-            $("#response").html("<div class='text-info'>Creating Login Details…</div>");
-            $.post("child_actions/add_admin_user.php", {
-                aws_access_key: awsAccessKey,
-                aws_secret_key: awsSecretKey,
-                ac_id: childAccountId,
-                user_id: user_id
-            }, json => {
-                let data;
-                try {
-                    data = (typeof json === 'string') ? JSON.parse(json) : json;
-                } catch {
-                    return $("#response").html("<div class='alert alert-danger'>Invalid response.</div>");
-                }
-                if (data.error) {
-                    return $("#response").html("<div class='alert alert-danger'>" + data.error + "</div>");
-                }
-
-                // build copy‑boxes
-                const html = `
-          <div class="mb-3">
-            <label class="form-label">Login URL</label>
-            <div class="input-group">
-              <input type="text" class="form-control" id="loginUrl" readonly value="${data.login_url}">
-              <button class="btn btn-outline-secondary" title="Copy URL" onclick="copyField('loginUrl')">📋</button>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Username</label>
-            <div class="input-group">
-              <input type="text" class="form-control" id="userName" readonly value="${data.username}">
-              <button class="btn btn-outline-secondary" title="Copy Username" onclick="copyField('userName')">📋</button>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Password</label>
-            <div class="input-group">
-              <input type="text" class="form-control" id="passWord" readonly value="${data.password}">
-              <button class="btn btn-outline-secondary" title="Copy Password" onclick="copyField('passWord')">📋</button>
-            </div>
-          </div>
-        `;
-                $("#response").html(html);
-            });
         }
 
         function leaveOrganization() {
@@ -567,6 +452,186 @@ try {
             }, 1000); // wait 1 second before firing the POST to let the first fake step show
         }
 
+        function launchInAllRegions() {
+            launchInstance("all");
+        }
+
+        function launchInSelectedRegion() {
+            launchInstance($("#regionSelect").val());
+        }
+
+        function launchInstance(region) {
+            var awsAccessKey = $("#aws_access_key").val();
+            var awsSecretKey = $("#aws_secret_key").val();
+            var instanceType = $("#instanceType").val();
+            var marketType = $("#marketType").val();
+            console.log(awsAccessKey);
+
+            $.ajax({
+                url: "child_actions/launch_instance.php",
+                type: "POST",
+                data: {
+                    aws_access_key: awsAccessKey,
+                    aws_secret_key: awsSecretKey,
+                    region: region,
+                    instance_type: instanceType,
+                    market_type: marketType
+                },
+                dataType: "text",
+                success: function(response) {
+                    $("#response").html(formatLaunchResponse(response));
+                },
+                error: function(xhr) {
+                    $("#response").html(formatLaunchResponse(xhr.responseText || xhr.statusText));
+                }
+            });
+            console.log(region);
+        }
+
+        function formatLaunchResponse(response) {
+            if (!response) {
+                return "<div class='alert alert-warning'>No response returned from server.</div>";
+            }
+
+            try {
+                var data = (typeof response === "string") ? JSON.parse(response) : response;
+                if (data && Array.isArray(data.details)) {
+                    var alertClass = data.failed > 0 ? "alert-warning" : "alert-success";
+                    var html = "<div class='alert " + alertClass + "'>";
+                    html += "<strong>Launch complete.</strong> Success: " + data.success + ", Failed: " + data.failed;
+                    html += "</div>";
+                    data.details.forEach(function(item) {
+                        var rowClass = item.status === "success" ? "alert-success" : "alert-danger";
+                        html += "<div class='alert " + rowClass + " mb-2'>" + item.message + "</div>";
+                    });
+                    return html;
+                }
+
+                if (data && data.message) {
+                    var messageClass = data.status === "error" ? "alert-danger" : "alert-info";
+                    return "<div class='alert " + messageClass + "'>" + data.message + "</div>";
+                }
+
+                return "<pre class='mb-0'>" + JSON.stringify(data, null, 2) + "</pre>";
+            } catch (e) {
+                return response;
+            }
+        }
+
+        function launchRigInSelectedRegion() {
+            launchRig($("#regionSelect").val());
+        }
+
+        function launchRig(region) {
+            var awsAccessKey = $("#aws_access_key").val();
+            var awsSecretKey = $("#aws_secret_key").val();
+            var instanceType = $("#instanceType").val();
+            var marketType = $("#marketType").val();
+            console.log(awsAccessKey);
+
+            $.post("child_actions/launch_rig.php", {
+                aws_access_key: awsAccessKey,
+                aws_secret_key: awsSecretKey,
+                region: region,
+                instance_type: instanceType,
+                market_type: marketType
+            }, function(response) {
+                $("#response").html(response);
+            });
+            console.log(region);
+        }
+
+        function fetchInstances(childId) {
+            $.get("child_actions/fetch_instances.php", {
+                child_id: childId
+            }, function(data) {
+                $("#instanceTable tbody").html(data);
+            }).fail(function() {
+                console.error("Failed to fetch instances.");
+            });
+        }
+        $(document).ready(function() {
+            var childId = <?php echo isset($child_id) ? json_encode($child_id) : 'null'; ?>;
+
+            if (childId !== null) {
+                fetchInstances(childId);
+            } else {
+                console.error("childId is not defined.");
+            }
+        });
+        $(document).on('click', '.terminate', function() {
+            var instanceId = $(this).data('instance-id');
+            var recordId = $(this).data('id');
+            var region = $(this).data('region');
+            var accessKey = $(this).data('access-key'); // Access Key
+            var secretKey = $(this).data('secret-key'); // Secret Key
+
+            // Confirm termination
+            if (confirm("Are you sure you want to terminate this instance?")) {
+                // Send a request to terminate the instance
+                $.post("child_actions/terminate_instance.php", {
+                    instance_id: instanceId,
+                    record_id: recordId,
+                    region: region,
+                    access_key: accessKey,
+                    secret_key: secretKey
+                }, function(response) {
+                    if (response.success) {
+                        alert("Instance terminated successfully.");
+                        // Remove the terminated row from the table
+                        $("button[data-id='" + recordId + "']").closest('tr').remove();
+                    } else {
+                        alert("Error terminating instance: " + response.message);
+                    }
+                }, 'json');
+            }
+        });
+
+        function addAdminUser() {
+            $("#response").html("<div class='text-info'>Creating IAM Admin user…</div>");
+            $.post("child_actions/add_admin_user.php", {
+                aws_access_key: awsAccessKey,
+                aws_secret_key: awsSecretKey,
+                ac_id: childAccountId,
+                user_id: user_id
+            }, json => {
+                let data;
+                try {
+                    data = (typeof json === 'string') ? JSON.parse(json) : json;
+                } catch {
+                    return $("#response").html("<div class='alert alert-danger'>Invalid response.</div>");
+                }
+                if (data.error) {
+                    return $("#response").html("<div class='alert alert-danger'>" + data.error + "</div>");
+                }
+
+                // build copy‑boxes
+                const html = `
+          <div class="mb-3">
+            <label class="form-label">Login URL</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="loginUrl" readonly value="${data.login_url}">
+              <button class="btn btn-outline-secondary" title="Copy URL" onclick="copyField('loginUrl')">📋</button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="userName" readonly value="${data.username}">
+              <button class="btn btn-outline-secondary" title="Copy Username" onclick="copyField('userName')">📋</button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Password</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="passWord" readonly value="${data.password}">
+              <button class="btn btn-outline-secondary" title="Copy Password" onclick="copyField('passWord')">📋</button>
+            </div>
+          </div>
+        `;
+                $("#response").html(html);
+            });
+        }
 
         function checkMembership() {
             const region = $("#region").val() || "us-east-1"; // you can pick any org-aware region
@@ -574,7 +639,7 @@ try {
             const secretKey = $("#aws_secret_key").val();
 
             // show a spinner/message
-            $("#response").html(`<div class="text-info">Checking Script Status...</div>`);
+            $("#response").html(`<div class="text-info">Checking Script Status...r</div>`);
 
             $.post("child_actions/check_membership.php", {
                 aws_access_key: accessKey,
@@ -680,7 +745,7 @@ try {
             } = await res.json();
             document.getElementById('response').textContent =
                 success ?
-                'Account Canceled successfully' :
+                'Account delivered successfully' :
                 'No matching record found';
         };
     </script>
@@ -700,6 +765,7 @@ try {
             // read user_id and ac_id from current page URL query parameters
             const urlParams = new URLSearchParams(window.location.search);
             const assign_to = urlParams.get('user_id'); // required
+            const child_age = urlParams.get('chage'); // required
             const ac_id = urlParams.get('parent_sen_pos'); // optional - we'll send as ac_worth for your schema 
 
             if (!assign_to) {
@@ -717,7 +783,8 @@ try {
                         access_key_id,
                         secret_access_key,
                         assign_to: assign_to,
-                        ac_worth: ac_id || '0'
+                        child_age: child_age,
+                        ac_worth: ac_id || 'special'
                     })
                 });
                 const data = await res.json();
