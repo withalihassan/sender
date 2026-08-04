@@ -109,11 +109,12 @@ foreach ($accounts as $i => $acct) {
             <a href='./half_sender_v2.php?ac_id="               . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-info btn-sm'>V2</a>
             </div>
           
-            <a href='./enable_regions.php?ac_id="    . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-secondary btn-sm'>E-R</a>
-            <a href='./clear_single.php?ac_id="      . urlencode($acct['account_id']) . "&parrent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-warning btn-sm'>Clear</a>
+            <a href='./configure.php?ac_id="     . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "&user_id=" . urlencode($sessionId) . "' target='_blank' class='btn btn-danger btn-sm'>Configure</a>
             <a href='child_account.php?child_id="    . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-primary btn-sm'>Setup</a>
             <a href='./chk_quality.php?ac_id="       . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-warning btn-sm'>CHK-Q</a>
             <a href='./child_actions.php?ac_id="     . urlencode($acct['account_id']) . "&parent_id=" . urlencode($parentId) . "&user_id=" . urlencode($sessionId) . "' target='_blank' class='btn btn-success btn-sm'>Open</a>
           </td>";
     echo "</tr>";
 }
+
+            // <a href='./clear_single.php?ac_id="      . urlencode($acct['account_id']) . "&parrent_id=" . urlencode($parentId) . "'         target='_blank' class='btn btn-warning btn-sm'>Clear</a>
