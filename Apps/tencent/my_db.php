@@ -2,7 +2,7 @@
 // File: my_db.php
 
 // Database connection settings
-define('DB_HOST', 'database-1.cjiuwqmaw256.ap-south-1.rds.amazonaws.com');
+define('DB_HOST', '54.151.244.24');
 define('DB_USER', 'admin');
 define('DB_PASS', '3CFz8no5NSxCXiDOMz8g');
 define('DB_NAME', 'manage_tencent');

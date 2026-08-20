@@ -335,6 +335,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             sendJson(true, $message, [
                 'status' => $result['Status'] ?? 'ACCEPTED',
+                'email' => $newEmail,
+                'account_name' => $accountName !== '' ? $accountName : ($childAccount['name'] ?? ''),
             ]);
         }
 
@@ -387,6 +389,11 @@ try {
             Ready to configure account <?php echo h($child_id); ?>.
         </div>
 
+        <div class="response-box mb-4">
+            <div><strong>Member Account:</strong> <?php echo h($child_id); ?></div>
+            <div><strong>Current Email:</strong> <span id="currentEmailText"><?php echo h($currentEmail); ?></span></div>
+        </div>
+
         <div class="d-flex gap-2 flex-wrap">
             <button type="button" class="btn btn-warning" id="attachSecretPolicyBtn">
                 Attach Secret Policy
@@ -413,7 +420,7 @@ try {
 
                     <div class="mb-3">
                         <label class="form-label">Current Email</label>
-                        <input type="email" class="form-control" value="<?php echo h($currentEmail); ?>" readonly>
+                        <input type="email" class="form-control" id="currentEmailInput" value="<?php echo h($currentEmail); ?>" readonly>
                     </div>
 
                     <div class="mb-3">
@@ -592,6 +599,10 @@ try {
                 if (data.success) {
                     $("#submitEmailBtn").prop("disabled", true).text("Updated");
                     $("#modalMessage").removeClass("text-muted text-danger").addClass("text-success").text(data.message);
+                    if (data.email) {
+                        $("#currentEmailText").text(data.email);
+                        $("#currentEmailInput").val(data.email);
+                    }
                     showMessage("#response", true, data.message);
                     return;
                 }
