@@ -118,11 +118,11 @@ while (true) {
             ]);
             update_run($pdo, $runId, 'Webpage Opened', 'Clicking first mock button');
 
-            $action = find_test_button_action($html, $url, mock_button_selector());
+            $action = find_test_button_action($html, $url, mock_button_selector(), mock_button_text());
             if (!is_mock_verification_url($action['url'])) {
                 throw new Exception('First mock button action is not allowed.');
             }
-            $secondHtml = http_fetch_page($action['url'], $action['method']);
+            $secondHtml = http_fetch_page($action['url'], $action['method'], $action['fields']);
 
             update_event($pdo, $eventId, [
                 'verification_clicked' => 1,
@@ -132,12 +132,12 @@ while (true) {
 
             $secondSelector = mock_second_button_selector();
 
-            if ($secondSelector !== '') {
-                $secondAction = find_test_button_action($secondHtml, $action['url'], $secondSelector);
+            if ($secondSelector !== '' || mock_second_button_text() !== '') {
+                $secondAction = find_test_button_action($secondHtml, $action['url'], $secondSelector, mock_second_button_text());
                 if (!is_mock_verification_url($secondAction['url'])) {
                     throw new Exception('Second mock button action is not allowed.');
                 }
-                http_fetch_page($secondAction['url'], $secondAction['method']);
+                http_fetch_page($secondAction['url'], $secondAction['method'], $secondAction['fields']);
             }
 
             update_event($pdo, $eventId, [
