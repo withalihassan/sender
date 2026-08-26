@@ -1,0 +1,42 @@
+<?php
+session_start();
+
+require '../includes/json.php';
+
+if (!isset($_SESSION['user_id'])) {
+    json_response(['success' => false, 'message' => 'Please login again.']);
+}
+
+require '../includes/database.php';
+
+ensure_amazon_tables($pdo);
+
+$accountId = (int) ($_POST['account_id'] ?? 0);
+$stmt = $pdo->prepare("SELECT * FROM mail_execution_runs WHERE account_id = ? ORDER BY id DESC LIMIT 1");
+$stmt->execute([$accountId]);
+$run = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$run) {
+    json_response([
+        'success' => true,
+        'run' => [
+            'status' => 'Idle',
+            'emails_processed' => 0,
+            'last_email' => '',
+            'current_operation' => 'Idle',
+        ],
+    ]);
+}
+
+json_response([
+    'success' => true,
+    'run' => [
+        'id' => (int) $run['id'],
+        'status' => $run['status'],
+        'emails_processed' => (int) $run['emails_processed'],
+        'last_email' => $run['last_email_at'] ? date('H:i:s', strtotime($run['last_email_at'])) : '',
+        'current_operation' => $run['current_operation'] ?: '',
+        'error_message' => $run['error_message'] ?: '',
+    ],
+]);
+?>

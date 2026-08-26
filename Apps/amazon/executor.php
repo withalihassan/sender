@@ -65,7 +65,20 @@ if (!$account) {
         }
         .status-row { display: flex; justify-content: space-between; gap: 14px; padding: 7px 0; border-bottom: 1px solid #e5e7eb; }
         .status-row:last-child { border-bottom: 0; }
-        .empty-card { min-height: 360px; }
+        .mail-card { min-height: 360px; }
+        .mail-stats {
+            display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 18px;
+            padding: 14px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0;
+        }
+        .mail-stats div { display: flex; justify-content: space-between; gap: 14px; }
+        .mail-table-wrap { overflow-x: auto; }
+        .mail-table { width: 100%; border-collapse: collapse; min-width: 620px; }
+        .mail-table th, .mail-table td {
+            padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: left;
+            white-space: nowrap;
+        }
+        .mail-table th { background: #f8fafc; font-size: 13px; }
+        .pill { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #e5e7eb; font-weight: 700; font-size: 12px; }
         .message { margin-top: 14px; font-weight: 700; color: #991b1b; }
         @media (max-width: 820px) {
             .topbar { flex-direction: column; align-items: flex-start; }
@@ -97,7 +110,7 @@ if (!$account) {
                     <input type="hidden" name="account_id" value="<?php echo (int) $account['id']; ?>">
 
                     <label>Email</label>
-                    <input type="email" name="email" required>
+                    <input type="email" name="email" id="emailInput" required>
 
                     <label>Phone Numbers</label>
                     <textarea name="numbers" required placeholder="+923116128008&#10;+923001234567&#10;+923451234567"></textarea>
@@ -116,8 +129,35 @@ if (!$account) {
                 <div id="message" class="message"></div>
             </section>
 
-            <section class="card empty-card">
+            <section class="card mail-card">
                 <h2>Mail Execution</h2>
+                <div class="buttons">
+                    <button type="button" class="primary" id="mailStartBtn">Start Mail Execution</button>
+                    <button type="button" class="danger" id="mailStopBtn">Stop Mail Execution</button>
+                </div>
+
+                <div class="mail-stats">
+                    <div><strong>Status:</strong><span id="mailStatus">Idle</span></div>
+                    <div><strong>Emails Processed:</strong><span id="mailProcessed">0</span></div>
+                    <div><strong>Last Email:</strong><span id="mailLastEmail"></span></div>
+                    <div><strong>Current Operation:</strong><span id="mailOperation">Idle</span></div>
+                </div>
+
+                <div class="mail-table-wrap">
+                    <table class="mail-table">
+                        <thead>
+                            <tr>
+                                <th>Email Received</th>
+                                <th>Verification Clicked</th>
+                                <th>Webpage Opened</th>
+                                <th>Test Button Clicked</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mailEventsBody"></tbody>
+                    </table>
+                </div>
+                <div id="mailMessage" class="message"></div>
             </section>
         </div>
     </main>
@@ -160,8 +200,80 @@ if (!$account) {
             }, 'json');
         });
 
+        function mark(value) {
+            return value == 1 ? '✅' : '—';
+        }
+
+        function renderMailEvents(events) {
+            $('#mailEventsBody').empty();
+
+            events.forEach(function (event) {
+                $('#mailEventsBody').append(
+                    '<tr data-event-id="' + event.id + '">' +
+                    '<td>' + mark(event.email_received) + '</td>' +
+                    '<td>' + mark(event.verification_clicked) + '</td>' +
+                    '<td>' + mark(event.webpage_opened) + '</td>' +
+                    '<td>' + mark(event.button_clicked) + '</td>' +
+                    '<td><span class="pill">' + $('<div>').text(event.status).html() + '</span></td>' +
+                    '</tr>'
+                );
+            });
+        }
+
+        function updateMailStatus() {
+            $.post('ajax/mail_status.php', { account_id: accountId }, function (res) {
+                if (!res.success) {
+                    $('#mailMessage').text(res.message || 'Unable to load mail status.');
+                    return;
+                }
+
+                $('#mailStatus').text(res.run.status);
+                $('#mailProcessed').text(res.run.emails_processed);
+                $('#mailLastEmail').text(res.run.last_email);
+                $('#mailOperation').text(res.run.current_operation);
+                $('#mailMessage').text(res.run.error_message || '');
+            }, 'json');
+        }
+
+        function loadMailEvents() {
+            $.post('ajax/mail_events.php', { account_id: accountId }, function (res) {
+                if (res.success) {
+                    renderMailEvents(res.events);
+                }
+            }, 'json');
+        }
+
+        $('#mailStartBtn').on('click', function () {
+            const email = $('#emailInput').val().trim();
+
+            if (!email) {
+                $('#mailMessage').text('Enter an email in the Number Updation email field first.');
+                return;
+            }
+
+            $.post('ajax/mail_start.php', { account_id: accountId, email: email }, function (res) {
+                $('#mailMessage').text(res.message);
+                updateMailStatus();
+            }, 'json').fail(function () {
+                $('#mailMessage').text('Request failed. Please try again.');
+            });
+        });
+
+        $('#mailStopBtn').on('click', function () {
+            $.post('ajax/mail_stop.php', { account_id: accountId }, function (res) {
+                $('#mailMessage').text(res.message);
+                updateMailStatus();
+            }, 'json');
+        });
+
         updateStatus();
+        updateMailStatus();
+        loadMailEvents();
         setInterval(updateStatus, 10000);
+        setInterval(function () {
+            updateMailStatus();
+            loadMailEvents();
+        }, 2000);
     </script>
 </body>
 </html>

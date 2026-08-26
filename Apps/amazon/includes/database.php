@@ -32,6 +32,44 @@ function ensure_amazon_tables($pdo)
             INDEX account_status_idx (account_id, status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS mail_execution_runs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            account_id INT NOT NULL,
+            email_address VARCHAR(255) NOT NULL,
+            status VARCHAR(40) NOT NULL DEFAULT 'Idle',
+            emails_processed INT NOT NULL DEFAULT 0,
+            last_email_at DATETIME DEFAULT NULL,
+            current_operation VARCHAR(255) DEFAULT NULL,
+            error_message TEXT DEFAULT NULL,
+            stop_requested TINYINT(1) NOT NULL DEFAULT 0,
+            worker_pid INT DEFAULT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX account_status_idx (account_id, status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS mail_execution_events (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            run_id INT NOT NULL,
+            account_id INT NOT NULL,
+            email_address VARCHAR(255) NOT NULL,
+            message_id VARCHAR(255) NOT NULL UNIQUE,
+            email_received TINYINT(1) NOT NULL DEFAULT 0,
+            verification_clicked TINYINT(1) NOT NULL DEFAULT 0,
+            webpage_opened TINYINT(1) NOT NULL DEFAULT 0,
+            button_clicked TINYINT(1) NOT NULL DEFAULT 0,
+            status VARCHAR(40) NOT NULL DEFAULT 'Idle',
+            error_message TEXT DEFAULT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX run_id_idx (run_id),
+            INDEX account_id_idx (account_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
 }
 
 function mask_value($value)

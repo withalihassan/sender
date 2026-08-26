@@ -5,3 +5,7 @@ Key is valid. Balance: $3.10785
 
 sudo git fetch origin
 sudo git pull origin main
+
+Smptp dev Token
+smtplabs_oLbfGHXTXXbXd5gDnVbnwgDsDtfVvzyggqBBHwbKYCWPGWm3
+
