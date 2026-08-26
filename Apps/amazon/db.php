@@ -6,7 +6,7 @@ $username = 'admin';
 
 
 $dbname   = 'manage_amazon';
-$password = 'sLoGMCVfEo4TpMGOEm18';
+$password = '3CFz8no5NSxCXiDOMz8g';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
