@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require '../includes/database.php';
 require '../mail/mail_config.php';
+require '../mail/mail_poll_service.php';
 
 ensure_amazon_tables($pdo);
 
@@ -51,13 +52,17 @@ $stmt = $pdo->prepare("
 $stmt->execute([$accountId, $email]);
 $runId = (int) $pdo->lastInsertId();
 
-$cmd = 'nohup ' . escapeshellcmd(PHP_BINARY) . ' ' .
-    escapeshellarg(__DIR__ . '/../mail/mail_poller.php') . ' ' .
-    escapeshellarg((string) $runId) . ' > /dev/null 2>&1 & echo $!';
-$pid = trim((string) shell_exec($cmd));
+try {
+    mail_poll_once($pdo, $runId);
+} catch (Exception $e) {
+    $pdo->prepare("
+        UPDATE mail_execution_runs
+        SET status = 'Error', current_operation = 'Polling error', error_message = ?, updated_at = NOW()
+        WHERE id = ?
+    ")->execute([$e->getMessage(), $runId]);
 
-$pdo->prepare("UPDATE mail_execution_runs SET worker_pid = ?, updated_at = NOW() WHERE id = ?")
-    ->execute([(int) $pid, $runId]);
+    json_response(['success' => false, 'message' => 'Email polling error: ' . $e->getMessage()]);
+}
 
 json_response(['success' => true, 'message' => 'Email polling is started.']);
 ?>

@@ -56,6 +56,7 @@ if (!$account) {
             border: 0; border-radius: 6px; padding: 12px 16px;
             font-weight: 700; cursor: pointer; font-size: 14px;
         }
+        button:disabled { cursor: not-allowed; opacity: 0.68; }
         .primary { background: #ff9900; color: #111827; }
         .danger { background: #dc2626; color: #fff; }
         .muted { background: #64748b; color: #fff; }
@@ -208,6 +209,13 @@ if (!$account) {
         function renderMailEvents(events) {
             $('#mailEventsBody').empty();
 
+            if (!events.length) {
+                $('#mailEventsBody').append(
+                    '<tr><td colspan="5">No received email yet.</td></tr>'
+                );
+                return;
+            }
+
             events.forEach(function (event) {
                 const body = event.email_text || event.email_json || '';
 
@@ -260,9 +268,15 @@ if (!$account) {
                 return;
             }
 
-            $('#mailStartBtn').prop('disabled', true).text('Starting...');
+            $('#mailStartBtn').prop('disabled', true).text('Clicked - Starting Polling');
+            $('#mailMessage').text('Email polling is starting...');
             $.post('ajax/mail_start.php', { account_id: accountId, email: email }, function (res) {
                 $('#mailMessage').text(res.message);
+                if (!res.success) {
+                    $('#mailStartBtn').prop('disabled', false).text('Start Mail Execution');
+                    return;
+                }
+                loadMailEvents();
                 updateMailStatus();
             }, 'json').fail(function () {
                 $('#mailMessage').text('Request failed. Please try again.');

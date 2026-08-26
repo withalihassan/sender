@@ -8,6 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require '../includes/database.php';
+require '../mail/mail_poll_service.php';
 
 ensure_amazon_tables($pdo);
 
@@ -31,6 +32,18 @@ if (!$run) {
 }
 
 $isPolling = in_array($run['status'], ['Running', 'Email Received'], true) && (int) $run['stop_requested'] === 0;
+
+if ($isPolling) {
+    try {
+        mail_poll_once($pdo, (int) $run['id']);
+    } catch (Exception $e) {
+        mail_update_run($pdo, (int) $run['id'], 'Error', 'Polling error', $e->getMessage());
+    }
+
+    $stmt->execute([$accountId]);
+    $run = $stmt->fetch(PDO::FETCH_ASSOC);
+    $isPolling = in_array($run['status'], ['Running', 'Email Received'], true) && (int) $run['stop_requested'] === 0;
+}
 
 json_response([
     'success' => true,

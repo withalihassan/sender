@@ -3,18 +3,32 @@ function mail_text_from_message($message)
 {
     $parts = [];
 
-    foreach (['subject', 'text', 'body', 'plain', 'plainText', 'content', 'message', 'snippet'] as $key) {
-        if (!empty($message[$key]) && is_string($message[$key])) {
-            $parts[] = $message[$key];
-        }
+    foreach (['subject', 'intro', 'text', 'body', 'plain', 'plainText', 'content', 'message', 'snippet'] as $key) {
+        mail_collect_text_parts($message[$key] ?? null, $parts, false);
     }
 
-    if (!empty($message['html']) && is_string($message['html'])) {
-        $parts[] = html_entity_decode(strip_tags($message['html']), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $parts[] = $message['html'];
+    mail_collect_text_parts($message['html'] ?? null, $parts, true);
+
+    $parts = array_values(array_filter(array_map('trim', $parts)));
+    return implode("\n\n", array_unique($parts));
+}
+
+function mail_collect_text_parts($value, &$parts, $isHtml)
+{
+    if (is_string($value) && trim($value) !== '') {
+        $parts[] = $isHtml
+            ? html_entity_decode(trim(strip_tags($value)), ENT_QUOTES | ENT_HTML5, 'UTF-8')
+            : html_entity_decode(trim($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return;
     }
 
-    return implode("\n", $parts);
+    if (!is_array($value)) {
+        return;
+    }
+
+    foreach ($value as $item) {
+        mail_collect_text_parts($item, $parts, $isHtml);
+    }
 }
 
 function mail_value_from_message($message, $keys)
