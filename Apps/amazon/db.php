@@ -1,7 +1,7 @@
 <?php
 // db.php
 
-if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '98.83.29.45') {
+if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '54.151.244.24') {
     $host = 'localhost';
     $username = 'root';
 } else {
