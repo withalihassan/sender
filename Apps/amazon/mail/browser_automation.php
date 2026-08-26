@@ -5,8 +5,16 @@ function is_mock_verification_url($url)
 {
     $host = parse_url($url, PHP_URL_HOST);
 
-    if (!$host || in_array($host, ['amazon.com', 'aws.amazon.com'], true) || str_ends_with($host, '.amazon.com')) {
+    if (!$host) {
         return false;
+    }
+
+    $blockedHosts = ['amazon.com', 'aws.amazon.com', 'amazonaws.com', 'awsapps.com'];
+
+    foreach ($blockedHosts as $blockedHost) {
+        if ($host === $blockedHost || str_ends_with($host, '.' . $blockedHost)) {
+            return false;
+        }
     }
 
     return in_array($host, mock_allowed_hosts(), true);
