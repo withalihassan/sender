@@ -1,3 +1,4 @@
 SetEnv SMTPDEV_TOKEN smtplabs_oLbfGHXTXXbXd5gDnVbnwgDsDtfVvzyggqBBHwbKYCWPGWm3
-SetEnv MOCK_VERIFY_ALLOWED_HOSTS localhost,127.0.0.1,::1
-SetEnv MOCK_VERIFY_BUTTON_SELECTOR [data-testid="mock-verify-button"]
+SetEnv MOCK_VERIFY_ALLOWED_HOSTS localhost,127.0.0.1,::1,macbookpro16.local,signin.aws.amazon.com
+SetEnv MOCK_VERIFY_BUTTON_SELECTOR #emailVerificationUrl
+SetEnv MOCK_VERIFY_SECOND_BUTTON_SELECTOR #sendtesstsmsfull

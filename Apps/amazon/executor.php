@@ -58,6 +58,7 @@ if (!$account) {
         }
         .primary { background: #ff9900; color: #111827; }
         .danger { background: #dc2626; color: #fff; }
+        .muted { background: #64748b; color: #fff; }
         .buttons { display: flex; gap: 10px; flex-wrap: wrap; }
         .status-box {
             margin-top: 18px; padding: 14px; border-radius: 8px;
@@ -134,6 +135,7 @@ if (!$account) {
                 <div class="buttons">
                     <button type="button" class="primary" id="mailStartBtn">Start Mail Execution</button>
                     <button type="button" class="danger" id="mailStopBtn">Stop Mail Execution</button>
+                    <button type="button" class="muted" id="mailFlushBtn">Flush Mail Data</button>
                 </div>
 
                 <div class="mail-stats">
@@ -148,10 +150,11 @@ if (!$account) {
                         <thead>
                             <tr>
                                 <th>Email Received</th>
-                                <th>Verification Clicked</th>
                                 <th>Webpage Opened</th>
-                                <th>Test Button Clicked</th>
+                                <th>First Button Clicked</th>
+                                <th>Second Button Clicked</th>
                                 <th>Status</th>
+                                <th>Error</th>
                             </tr>
                         </thead>
                         <tbody id="mailEventsBody"></tbody>
@@ -211,10 +214,11 @@ if (!$account) {
                 $('#mailEventsBody').append(
                     '<tr data-event-id="' + event.id + '">' +
                     '<td>' + mark(event.email_received) + '</td>' +
-                    '<td>' + mark(event.verification_clicked) + '</td>' +
                     '<td>' + mark(event.webpage_opened) + '</td>' +
+                    '<td>' + mark(event.verification_clicked) + '</td>' +
                     '<td>' + mark(event.button_clicked) + '</td>' +
                     '<td><span class="pill">' + $('<div>').text(event.status).html() + '</span></td>' +
+                    '<td>' + $('<div>').text(event.error_message || '').html() + '</td>' +
                     '</tr>'
                 );
             });
@@ -262,6 +266,18 @@ if (!$account) {
         $('#mailStopBtn').on('click', function () {
             $.post('ajax/mail_stop.php', { account_id: accountId }, function (res) {
                 $('#mailMessage').text(res.message);
+                updateMailStatus();
+            }, 'json');
+        });
+
+        $('#mailFlushBtn').on('click', function () {
+            if (!confirm('Clear all Mail Execution data for this account?')) {
+                return;
+            }
+
+            $.post('ajax/mail_flush.php', { account_id: accountId }, function (res) {
+                $('#mailMessage').text(res.message);
+                $('#mailEventsBody').empty();
                 updateMailStatus();
             }, 'json');
         });

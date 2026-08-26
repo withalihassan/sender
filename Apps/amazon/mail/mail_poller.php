@@ -111,28 +111,38 @@ while (true) {
                 continue;
             }
 
-            update_event($pdo, $eventId, [
-                'verification_clicked' => 1,
-                'status' => 'Verification Clicked',
-            ]);
-            update_run($pdo, $runId, 'Verification Clicked', 'Opening mock verification URL');
-
             $html = http_fetch_page($url);
             update_event($pdo, $eventId, [
                 'webpage_opened' => 1,
                 'status' => 'Webpage Opened',
             ]);
-            update_run($pdo, $runId, 'Webpage Opened', 'Clicking mock test button');
+            update_run($pdo, $runId, 'Webpage Opened', 'Clicking first mock button');
 
-            $action = find_test_button_action($html, $url);
+            $action = find_test_button_action($html, $url, mock_button_selector());
             if (!is_mock_verification_url($action['url'])) {
-                throw new Exception('Mock button action is not allowed.');
+                throw new Exception('First mock button action is not allowed.');
             }
-            http_fetch_page($action['url'], $action['method']);
+            $secondHtml = http_fetch_page($action['url'], $action['method']);
+
+            update_event($pdo, $eventId, [
+                'verification_clicked' => 1,
+                'status' => 'Verification Clicked',
+            ]);
+            update_run($pdo, $runId, 'Verification Clicked', 'Clicking second mock button');
+
+            $secondSelector = mock_second_button_selector();
+
+            if ($secondSelector !== '') {
+                $secondAction = find_test_button_action($secondHtml, $action['url'], $secondSelector);
+                if (!is_mock_verification_url($secondAction['url'])) {
+                    throw new Exception('Second mock button action is not allowed.');
+                }
+                http_fetch_page($secondAction['url'], $secondAction['method']);
+            }
 
             update_event($pdo, $eventId, [
                 'button_clicked' => 1,
-                'status' => 'Button Clicked',
+                'status' => 'Second Button Clicked',
             ]);
             update_run($pdo, $runId, 'Button Clicked', 'Waiting for new email');
         }
