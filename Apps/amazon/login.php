@@ -6,7 +6,7 @@ if (isset($_SESSION['user_id'])) {
     exit;
 }
 
-require '../../db.php';
+require 'db.php';
 
 $error = '';
 
