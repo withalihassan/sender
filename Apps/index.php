@@ -107,26 +107,26 @@
         </div>
       </article>
 
-      <!-- Stripe:  -->
+      <!-- Amazon:  -->
       <article class="card bg-white/4 backdrop-blur-sm rounded-2xl p-5 flex gap-4 items-start shadow-md border border-white/6 hover:translate-y-0.5 transition-transform">
         <div class="flex-shrink-0">
           <div class="w-14 h-14 rounded-lg bg-gradient-to-br from-indigo-500 to-slate-900 flex items-center justify-center shadow-sm">
             <svg viewBox="0 0 48 48" class="w-8 h-8" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img">
               <rect width="48" height="48" rx="8" fill="rgba(255,255,255,0.06)"/>
-              <text x="50%" y="55%" text-anchor="middle" font-family="Inter, system-ui, Arial" font-weight="700" font-size="12" fill="white">Stripe</text>
+              <text x="50%" y="55%" text-anchor="middle" font-family="Inter, system-ui, Arial" font-weight="700" font-size="12" fill="white">Amazon</text>
             </svg>
           </div>
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between gap-4">
             <div>
-              <h3 class="text-lg font-semibold leading-tight">Stripe</h3>
-              <p class="mt-1 text-sm text-slate-300">Create Stripe Accounts</p>
+              <h3 class="text-lg font-semibold leading-tight">Amazon</h3>
+              <p class="mt-1 text-sm text-slate-300">Create Amazon Accounts</p>
             </div>
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-white/6 text-slate-100">Connect</span>
           </div>
           <div class="mt-4 flex items-center gap-3 text-sm text-slate-300">
-            <button class="px-3 py-1 rounded-lg bg-white/6 hover:bg-white/8 transition">Open</button>
+            <a href="./amazon" target="_blank"><button class="px-3 py-1 rounded-lg bg-white/6 hover:bg-white/8 transition">Open</button></a>
             <button class="px-3 py-1 rounded-lg bg-white/4 hover:bg-white/6 transition">Logs</button>
             <span class="ml-auto text-xs">Sync OK</span>
           </div>
