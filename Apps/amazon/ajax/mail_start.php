@@ -33,7 +33,7 @@ if (!$stmt->fetch()) {
 $running = $pdo->prepare("
     SELECT id FROM mail_execution_runs
     WHERE account_id = ?
-      AND status IN ('Running', 'Email Received', 'Verification Clicked', 'Webpage Opened', 'Button Clicked')
+      AND status IN ('Running', 'Email Received')
       AND stop_requested = 0
     LIMIT 1
 ");
@@ -59,5 +59,5 @@ $pid = trim((string) shell_exec($cmd));
 $pdo->prepare("UPDATE mail_execution_runs SET worker_pid = ?, updated_at = NOW() WHERE id = ?")
     ->execute([(int) $pid, $runId]);
 
-json_response(['success' => true, 'message' => 'Mail Execution started.']);
+json_response(['success' => true, 'message' => 'Email polling is started.']);
 ?>

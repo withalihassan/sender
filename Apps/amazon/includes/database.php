@@ -58,10 +58,12 @@ function ensure_amazon_tables($pdo)
             account_id INT NOT NULL,
             email_address VARCHAR(255) NOT NULL,
             message_id VARCHAR(255) NOT NULL UNIQUE,
+            sender VARCHAR(255) DEFAULT NULL,
+            recipient VARCHAR(255) DEFAULT NULL,
+            subject VARCHAR(500) DEFAULT NULL,
+            email_text MEDIUMTEXT DEFAULT NULL,
+            email_json MEDIUMTEXT DEFAULT NULL,
             email_received TINYINT(1) NOT NULL DEFAULT 0,
-            verification_clicked TINYINT(1) NOT NULL DEFAULT 0,
-            webpage_opened TINYINT(1) NOT NULL DEFAULT 0,
-            button_clicked TINYINT(1) NOT NULL DEFAULT 0,
             status VARCHAR(40) NOT NULL DEFAULT 'Idle',
             error_message TEXT DEFAULT NULL,
             created_at DATETIME NOT NULL,
@@ -70,6 +72,28 @@ function ensure_amazon_tables($pdo)
             INDEX account_id_idx (account_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+
+    ensure_column($pdo, 'mail_execution_events', 'sender', "VARCHAR(255) DEFAULT NULL");
+    ensure_column($pdo, 'mail_execution_events', 'recipient', "VARCHAR(255) DEFAULT NULL");
+    ensure_column($pdo, 'mail_execution_events', 'subject', "VARCHAR(500) DEFAULT NULL");
+    ensure_column($pdo, 'mail_execution_events', 'email_text', "MEDIUMTEXT DEFAULT NULL");
+    ensure_column($pdo, 'mail_execution_events', 'email_json', "MEDIUMTEXT DEFAULT NULL");
+}
+
+function ensure_column($pdo, $table, $column, $definition)
+{
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*)
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = ?
+          AND COLUMN_NAME = ?
+    ");
+    $stmt->execute([$table, $column]);
+
+    if ((int) $stmt->fetchColumn() === 0) {
+        $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+    }
 }
 
 function mask_value($value)

@@ -17,20 +17,55 @@ function mail_text_from_message($message)
     return implode("\n", $parts);
 }
 
-function extract_verification_url($text)
+function mail_value_from_message($message, $keys)
 {
-    if (!preg_match_all('/https?:\/\/[^\s"\'<>]+/i', $text, $matches)) {
-        return null;
-    }
+    foreach ($keys as $key) {
+        if (!empty($message[$key]) && is_string($message[$key])) {
+            return $message[$key];
+        }
 
-    foreach ($matches[0] as $url) {
-        $cleanUrl = rtrim(html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8'), '.,);]');
+        if (!empty($message[$key]['address']) && is_string($message[$key]['address'])) {
+            return $message[$key]['address'];
+        }
 
-        if (is_mock_verification_url($cleanUrl)) {
-            return $cleanUrl;
+        if (!empty($message[$key]['email']) && is_string($message[$key]['email'])) {
+            return $message[$key]['email'];
+        }
+
+        if (!empty($message[$key]) && is_array($message[$key])) {
+            $first = reset($message[$key]);
+
+            if (is_string($first)) {
+                return $first;
+            }
+
+            if (is_array($first)) {
+                if (!empty($first['address'])) {
+                    return $first['address'];
+                }
+
+                if (!empty($first['email'])) {
+                    return $first['email'];
+                }
+            }
         }
     }
 
-    return null;
+    return '';
+}
+
+function mail_subject_from_message($message)
+{
+    return mail_value_from_message($message, ['subject', 'Subject']);
+}
+
+function mail_sender_from_message($message)
+{
+    return mail_value_from_message($message, ['from', 'sender', 'mailFrom', 'envelopeFrom']);
+}
+
+function mail_recipient_from_message($message)
+{
+    return mail_value_from_message($message, ['to', 'recipient', 'recipients', 'mailTo', 'envelopeTo']);
 }
 ?>

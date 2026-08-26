@@ -5,7 +5,6 @@ if (PHP_SAPI !== 'cli') {
 
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/smtpdev_client.php';
-require_once __DIR__ . '/browser_automation.php';
 require_once __DIR__ . '/mail_processor.php';
 
 ensure_amazon_tables($pdo);
@@ -33,28 +32,11 @@ function update_run($pdo, $runId, $status, $operation, $error = null)
     $stmt->execute([$status, $operation, $error, $runId]);
 }
 
-function update_event($pdo, $eventId, $fields)
+function event_for_message($pdo, $messageId)
 {
-    $sets = [];
-    $values = [];
-
-    foreach ($fields as $field => $value) {
-        $sets[] = $field . ' = ?';
-        $values[] = $value;
-    }
-
-    $sets[] = 'updated_at = NOW()';
-    $values[] = $eventId;
-
-    $stmt = $pdo->prepare("UPDATE mail_execution_events SET " . implode(', ', $sets) . " WHERE id = ?");
-    $stmt->execute($values);
-}
-
-function event_exists($pdo, $messageId)
-{
-    $stmt = $pdo->prepare("SELECT id FROM mail_execution_events WHERE message_id = ?");
+    $stmt = $pdo->prepare("SELECT id, account_id, email_text FROM mail_execution_events WHERE message_id = ?");
     $stmt->execute([$messageId]);
-    return $stmt->fetchColumn();
+    return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
 while (true) {
@@ -79,72 +61,67 @@ while (true) {
 
             $messageId = $message['id'] ?? $message['_id'] ?? md5(json_encode($message));
 
-            if (event_exists($pdo, $messageId)) {
+            $existingEvent = event_for_message($pdo, $messageId);
+
+            if ($existingEvent && (int) $existingEvent['account_id'] !== (int) $run['account_id']) {
                 continue;
             }
 
-            $stmt = $pdo->prepare("
-                INSERT INTO mail_execution_events
-                (run_id, account_id, email_address, message_id, email_received, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 1, 'Email Received', NOW(), NOW())
-            ");
-            $stmt->execute([$runId, $run['account_id'], $run['email_address'], $messageId]);
-            $eventId = $pdo->lastInsertId();
+            if ($existingEvent && trim((string) $existingEvent['email_text']) !== '') {
+                continue;
+            }
+
+            $detail = smtpdev_message_detail($smtpAccountId, $mailboxId, $messageId);
+            $fullMessage = array_merge($message, $detail);
+            $text = mail_text_from_message($fullMessage);
+            $sender = mail_sender_from_message($fullMessage);
+            $recipient = mail_recipient_from_message($fullMessage);
+            $subject = mail_subject_from_message($fullMessage);
+            $json = json_encode($fullMessage, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+            if ($existingEvent) {
+                $stmt = $pdo->prepare("
+                    UPDATE mail_execution_events
+                    SET run_id = ?, email_address = ?, sender = ?, recipient = ?, subject = ?,
+                        email_text = ?, email_json = ?, email_received = 1, status = 'Email Received',
+                        error_message = NULL, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([
+                    $runId,
+                    $run['email_address'],
+                    $sender,
+                    $recipient,
+                    $subject,
+                    $text,
+                    $json,
+                    $existingEvent['id'],
+                ]);
+            } else {
+                $stmt = $pdo->prepare("
+                    INSERT INTO mail_execution_events
+                    (run_id, account_id, email_address, message_id, sender, recipient, subject, email_text, email_json, email_received, status, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'Email Received', NOW(), NOW())
+                ");
+                $stmt->execute([
+                    $runId,
+                    $run['account_id'],
+                    $run['email_address'],
+                    $messageId,
+                    $sender,
+                    $recipient,
+                    $subject,
+                    $text,
+                    $json,
+                ]);
+            }
 
             $pdo->prepare("
                 UPDATE mail_execution_runs
-                SET status = 'Email Received', emails_processed = emails_processed + 1,
-                    last_email_at = NOW(), current_operation = 'Email received', updated_at = NOW()
+                SET status = 'Email Received', emails_processed = emails_processed + ?,
+                    last_email_at = NOW(), current_operation = 'Email received and displayed', error_message = NULL, updated_at = NOW()
                 WHERE id = ?
-            ")->execute([$runId]);
-
-            $detail = smtpdev_message_detail($smtpAccountId, $mailboxId, $messageId);
-            $text = mail_text_from_message(array_merge($message, $detail));
-            $url = extract_verification_url($text);
-
-            if (!$url) {
-                update_event($pdo, $eventId, [
-                    'status' => 'Error',
-                    'error_message' => 'No authorized mock verification URL found.',
-                ]);
-                update_run($pdo, $runId, 'Error', 'No authorized mock verification URL found.', 'No authorized mock verification URL found.');
-                continue;
-            }
-
-            $html = http_fetch_page($url);
-            update_event($pdo, $eventId, [
-                'webpage_opened' => 1,
-                'status' => 'Webpage Opened',
-            ]);
-            update_run($pdo, $runId, 'Webpage Opened', 'Clicking first mock button');
-
-            $action = find_test_button_action($html, $url, mock_button_selector(), mock_button_text());
-            if (!is_mock_verification_url($action['url'])) {
-                throw new Exception('First mock button action is not allowed.');
-            }
-            $secondHtml = http_fetch_page($action['url'], $action['method'], $action['fields']);
-
-            update_event($pdo, $eventId, [
-                'verification_clicked' => 1,
-                'status' => 'Verification Clicked',
-            ]);
-            update_run($pdo, $runId, 'Verification Clicked', 'Clicking second mock button');
-
-            $secondSelector = mock_second_button_selector();
-
-            if ($secondSelector !== '' || mock_second_button_text() !== '') {
-                $secondAction = find_test_button_action($secondHtml, $action['url'], $secondSelector, mock_second_button_text());
-                if (!is_mock_verification_url($secondAction['url'])) {
-                    throw new Exception('Second mock button action is not allowed.');
-                }
-                http_fetch_page($secondAction['url'], $secondAction['method'], $secondAction['fields']);
-            }
-
-            update_event($pdo, $eventId, [
-                'button_clicked' => 1,
-                'status' => 'Second Button Clicked',
-            ]);
-            update_run($pdo, $runId, 'Button Clicked', 'Waiting for new email');
+            ")->execute([$existingEvent ? 0 : 1, $runId]);
         }
     } catch (Exception $e) {
         update_run($pdo, $runId, 'Error', 'Worker error', $e->getMessage());

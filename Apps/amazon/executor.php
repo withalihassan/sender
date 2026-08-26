@@ -73,13 +73,18 @@ if (!$account) {
         }
         .mail-stats div { display: flex; justify-content: space-between; gap: 14px; }
         .mail-table-wrap { overflow-x: auto; }
-        .mail-table { width: 100%; border-collapse: collapse; min-width: 620px; }
+        .mail-table { width: 100%; border-collapse: collapse; min-width: 760px; }
         .mail-table th, .mail-table td {
             padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: left;
-            white-space: nowrap;
+            vertical-align: top;
         }
         .mail-table th { background: #f8fafc; font-size: 13px; }
-        .pill { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #e5e7eb; font-weight: 700; font-size: 12px; }
+        .mail-meta { white-space: nowrap; font-size: 13px; }
+        .mail-body {
+            max-width: 360px; max-height: 220px; overflow: auto; margin: 0;
+            white-space: pre-wrap; overflow-wrap: anywhere; font-family: Arial, sans-serif;
+            font-size: 13px; line-height: 1.45; color: #111827;
+        }
         .message { margin-top: 14px; font-weight: 700; color: #991b1b; }
         @media (max-width: 820px) {
             .topbar { flex-direction: column; align-items: flex-start; }
@@ -134,8 +139,6 @@ if (!$account) {
                 <h2>Mail Execution</h2>
                 <div class="buttons">
                     <button type="button" class="primary" id="mailStartBtn">Start Mail Execution</button>
-                    <button type="button" class="danger" id="mailStopBtn">Stop Mail Execution</button>
-                    <button type="button" class="muted" id="mailFlushBtn">Flush Mail Data</button>
                 </div>
 
                 <div class="mail-stats">
@@ -149,12 +152,11 @@ if (!$account) {
                     <table class="mail-table">
                         <thead>
                             <tr>
-                                <th>Email Received</th>
-                                <th>Webpage Opened</th>
-                                <th>First Button Clicked</th>
-                                <th>Second Button Clicked</th>
-                                <th>Status</th>
-                                <th>Error</th>
+                                <th>Received</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Subject</th>
+                                <th>Complete Email</th>
                             </tr>
                         </thead>
                         <tbody id="mailEventsBody"></tbody>
@@ -203,22 +205,19 @@ if (!$account) {
             }, 'json');
         });
 
-        function mark(value) {
-            return value == 1 ? '✅' : '—';
-        }
-
         function renderMailEvents(events) {
             $('#mailEventsBody').empty();
 
             events.forEach(function (event) {
+                const body = event.email_text || event.email_json || '';
+
                 $('#mailEventsBody').append(
                     '<tr data-event-id="' + event.id + '">' +
-                    '<td>' + mark(event.email_received) + '</td>' +
-                    '<td>' + mark(event.webpage_opened) + '</td>' +
-                    '<td>' + mark(event.verification_clicked) + '</td>' +
-                    '<td>' + mark(event.button_clicked) + '</td>' +
-                    '<td><span class="pill">' + $('<div>').text(event.status).html() + '</span></td>' +
-                    '<td>' + $('<div>').text(event.error_message || '').html() + '</td>' +
+                    '<td class="mail-meta">' + $('<div>').text(event.created_at || '').html() + '</td>' +
+                    '<td>' + $('<div>').text(event.sender || '').html() + '</td>' +
+                    '<td>' + $('<div>').text(event.recipient || '').html() + '</td>' +
+                    '<td>' + $('<div>').text(event.subject || '').html() + '</td>' +
+                    '<td><pre class="mail-body">' + $('<div>').text(body).html() + '</pre></td>' +
                     '</tr>'
                 );
             });
@@ -236,6 +235,12 @@ if (!$account) {
                 $('#mailLastEmail').text(res.run.last_email);
                 $('#mailOperation').text(res.run.current_operation);
                 $('#mailMessage').text(res.run.error_message || '');
+
+                if (res.run.is_polling) {
+                    $('#mailStartBtn').prop('disabled', true).text('Email Polling Started');
+                } else {
+                    $('#mailStartBtn').prop('disabled', false).text('Start Mail Execution');
+                }
             }, 'json');
         }
 
@@ -255,31 +260,14 @@ if (!$account) {
                 return;
             }
 
+            $('#mailStartBtn').prop('disabled', true).text('Starting...');
             $.post('ajax/mail_start.php', { account_id: accountId, email: email }, function (res) {
                 $('#mailMessage').text(res.message);
                 updateMailStatus();
             }, 'json').fail(function () {
                 $('#mailMessage').text('Request failed. Please try again.');
+                $('#mailStartBtn').prop('disabled', false).text('Start Mail Execution');
             });
-        });
-
-        $('#mailStopBtn').on('click', function () {
-            $.post('ajax/mail_stop.php', { account_id: accountId }, function (res) {
-                $('#mailMessage').text(res.message);
-                updateMailStatus();
-            }, 'json');
-        });
-
-        $('#mailFlushBtn').on('click', function () {
-            if (!confirm('Clear all Mail Execution data for this account?')) {
-                return;
-            }
-
-            $.post('ajax/mail_flush.php', { account_id: accountId }, function (res) {
-                $('#mailMessage').text(res.message);
-                $('#mailEventsBody').empty();
-                updateMailStatus();
-            }, 'json');
         });
 
         updateStatus();

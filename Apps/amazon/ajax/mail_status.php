@@ -24,9 +24,13 @@ if (!$run) {
             'emails_processed' => 0,
             'last_email' => '',
             'current_operation' => 'Idle',
+            'error_message' => '',
+            'is_polling' => false,
         ],
     ]);
 }
+
+$isPolling = in_array($run['status'], ['Running', 'Email Received'], true) && (int) $run['stop_requested'] === 0;
 
 json_response([
     'success' => true,
@@ -37,6 +41,7 @@ json_response([
         'last_email' => $run['last_email_at'] ? date('H:i:s', strtotime($run['last_email_at'])) : '',
         'current_operation' => $run['current_operation'] ?: '',
         'error_message' => $run['error_message'] ?: '',
+        'is_polling' => $isPolling,
     ],
 ]);
 ?>
