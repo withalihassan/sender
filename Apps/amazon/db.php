@@ -5,7 +5,7 @@ if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '54.151.244.24') {
     $host = 'localhost';
     $username = 'root';
 } else {
-    $host = 'database-1.ct22ws4u0c7g.me-central-1.rds.amazonaws.com';
+    $host = '54.151.244.24';
     $username = 'admin';
 }
 
