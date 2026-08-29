@@ -181,7 +181,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 26px;
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.03em;
     color: var(--text);
     margin-bottom: 14px;
   }
@@ -257,7 +257,7 @@
           </svg>
         </div>
       </div>
-      <div class="code-value" id="code1">— — — — — —</div>
+      <div class="code-value" id="code1">------</div>
       <button class="copy-btn" data-target="code1">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
         Copy
@@ -274,7 +274,7 @@
           </svg>
         </div>
       </div>
-      <div class="code-value" id="code2">— — — — — —</div>
+      <div class="code-value" id="code2">------</div>
       <button class="copy-btn" data-target="code2">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
         Copy
@@ -284,7 +284,7 @@
 
   <div class="footnote">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-    <span>All generation happens in this page using your browser's built-in cryptography. Treat this secret like a password — anyone who has it can generate your codes too.</span>
+    <span>All generation happens in this page using plain JavaScript. Treat this secret like a password — anyone who has it can generate your codes too.</span>
   </div>
 </div>
 
@@ -308,6 +308,7 @@
   let activeSecretBytes = null;
   let tickHandle = null;
 
+  // ---- Base32 decode ----
   function base32Decode(input) {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
     const clean = input.toUpperCase().replace(/[^A-Z2-7]/g, '');
@@ -334,9 +335,11 @@
     return new Uint8Array(buf);
   }
 
-  // ---- Pure-JS SHA-1 + HMAC (no Web Crypto dependency) ----
-  // Works on plain HTTP as well as HTTPS, since it doesn't rely on
-  // crypto.subtle, which browsers restrict to secure contexts.
+  // ---- Pure-JS SHA-1 + HMAC ----
+  // Deliberately not using window.crypto.subtle or navigator.clipboard's
+  // secure-context-only behaviors elsewhere in this file — both are
+  // restricted by browsers to HTTPS/localhost, and this needs to run on
+  // a plain HTTP server too.
 
   function rotl(n, s) { return (n << s) | (n >>> (32 - s)); }
 
@@ -388,6 +391,13 @@
     return out;
   }
 
+  function concatBytes(a, b) {
+    const out = new Uint8Array(a.length + b.length);
+    out.set(a, 0);
+    out.set(b, a.length);
+    return out;
+  }
+
   function hmacSha1(keyBytes, msgBytes) {
     const blockSize = 64;
     let key = keyBytes;
@@ -409,13 +419,6 @@
     return sha1(concatBytes(oKeyPad, inner));
   }
 
-  function concatBytes(a, b) {
-    const out = new Uint8Array(a.length + b.length);
-    out.set(a, 0);
-    out.set(b, a.length);
-    return out;
-  }
-
   function totpAt(keyBytes, forTime) {
     const counter = Math.floor(forTime / PERIOD);
     const msg = intToBytes(counter);
@@ -427,10 +430,6 @@
                     (hash[offset + 3] & 0xff);
     const otp = binCode % Math.pow(10, DIGITS);
     return otp.toString().padStart(DIGITS, '0');
-  }
-
-  function formatCode(code) {
-    return code.slice(0, 3) + ' ' + code.slice(3);
   }
 
   function setRing(ringEl, fraction) {
@@ -448,8 +447,8 @@
       const c1 = totpAt(activeSecretBytes, now);
       const c2 = totpAt(activeSecretBytes, now + PERIOD);
 
-      code1El.textContent = formatCode(c1);
-      code2El.textContent = formatCode(c2);
+      code1El.textContent = c1;
+      code2El.textContent = c2;
       setRing(ring1, remaining / PERIOD);
       setRing(ring2, remaining / PERIOD);
     } catch (err) {
@@ -504,12 +503,40 @@
   });
   secretInput.addEventListener('input', clearError);
 
-  document.querySelectorAll('.copy-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const targetId = btn.getAttribute('data-target');
-      const text = document.getElementById(targetId).textContent.replace(/\s/g, '');
+  // ---- Copy to clipboard, with a fallback for plain-HTTP servers ----
+  // navigator.clipboard is only available in secure contexts (HTTPS or
+  // localhost). On a plain HTTP server it's undefined, so we fall back
+  // to the older execCommand approach via a hidden textarea, which has
+  // no such restriction.
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
       try {
-        await navigator.clipboard.writeText(text);
+        const ok = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (ok) resolve(); else reject(new Error('execCommand copy failed'));
+      } catch (err) {
+        document.body.removeChild(textarea);
+        reject(err);
+      }
+    });
+  }
+
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const text = document.getElementById(targetId).textContent.trim();
+      copyText(text).then(() => {
         const original = btn.innerHTML;
         btn.classList.add('copied');
         btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied`;
@@ -517,9 +544,9 @@
           btn.classList.remove('copied');
           btn.innerHTML = original;
         }, 1400);
-      } catch (err) {
+      }).catch(err => {
         console.error('Copy failed', err);
-      }
+      });
     });
   });
 })();
