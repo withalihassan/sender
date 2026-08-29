@@ -334,18 +334,92 @@
     return new Uint8Array(buf);
   }
 
-  async function hmacSha1(keyBytes, msgBytes) {
-    const key = await crypto.subtle.importKey(
-      'raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
-    );
-    const sig = await crypto.subtle.sign('HMAC', key, msgBytes);
-    return new Uint8Array(sig);
+  // ---- Pure-JS SHA-1 + HMAC (no Web Crypto dependency) ----
+  // Works on plain HTTP as well as HTTPS, since it doesn't rely on
+  // crypto.subtle, which browsers restrict to secure contexts.
+
+  function rotl(n, s) { return (n << s) | (n >>> (32 - s)); }
+
+  function sha1(msgBytes) {
+    const msgLen = msgBytes.length;
+    // Padded length: msg + 0x80 marker + zero padding + 8-byte bit-length, multiple of 64 bytes
+    const numBlocks = Math.ceil((msgLen + 9) / 64);
+    const paddedLen = numBlocks * 64;
+    const padded = new Uint8Array(paddedLen);
+    padded.set(msgBytes);
+    padded[msgLen] = 0x80;
+    const bitLenHigh = Math.floor((msgLen * 8) / 0x100000000);
+    const bitLenLow = (msgLen * 8) >>> 0;
+    const dv = new DataView(padded.buffer);
+    dv.setUint32(paddedLen - 8, bitLenHigh, false);
+    dv.setUint32(paddedLen - 4, bitLenLow, false);
+
+    let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0;
+    const w = new Uint32Array(80);
+
+    for (let block = 0; block < paddedLen; block += 64) {
+      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(block + i * 4, false);
+      for (let i = 16; i < 80; i++) w[i] = rotl(w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16], 1);
+
+      let a = h0, b = h1, c = h2, d = h3, e = h4;
+
+      for (let i = 0; i < 80; i++) {
+        let f, k;
+        if (i < 20) { f = (b & c) | ((~b) & d); k = 0x5A827999; }
+        else if (i < 40) { f = b ^ c ^ d; k = 0x6ED9EBA1; }
+        else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC; }
+        else { f = b ^ c ^ d; k = 0xCA62C1D6; }
+
+        const temp = (rotl(a, 5) + f + e + k + w[i]) >>> 0;
+        e = d; d = c; c = rotl(b, 30); b = a; a = temp;
+      }
+
+      h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0;
+      h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
+    }
+
+    const out = new Uint8Array(20);
+    [h0, h1, h2, h3, h4].forEach((h, i) => {
+      out[i*4] = (h >>> 24) & 0xff;
+      out[i*4+1] = (h >>> 16) & 0xff;
+      out[i*4+2] = (h >>> 8) & 0xff;
+      out[i*4+3] = h & 0xff;
+    });
+    return out;
   }
 
-  async function totpAt(keyBytes, forTime) {
+  function hmacSha1(keyBytes, msgBytes) {
+    const blockSize = 64;
+    let key = keyBytes;
+    if (key.length > blockSize) key = sha1(key);
+    if (key.length < blockSize) {
+      const padded = new Uint8Array(blockSize);
+      padded.set(key);
+      key = padded;
+    }
+
+    const oKeyPad = new Uint8Array(blockSize);
+    const iKeyPad = new Uint8Array(blockSize);
+    for (let i = 0; i < blockSize; i++) {
+      oKeyPad[i] = key[i] ^ 0x5c;
+      iKeyPad[i] = key[i] ^ 0x36;
+    }
+
+    const inner = sha1(concatBytes(iKeyPad, msgBytes));
+    return sha1(concatBytes(oKeyPad, inner));
+  }
+
+  function concatBytes(a, b) {
+    const out = new Uint8Array(a.length + b.length);
+    out.set(a, 0);
+    out.set(b, a.length);
+    return out;
+  }
+
+  function totpAt(keyBytes, forTime) {
     const counter = Math.floor(forTime / PERIOD);
     const msg = intToBytes(counter);
-    const hash = await hmacSha1(keyBytes, msg);
+    const hash = hmacSha1(keyBytes, msg);
     const offset = hash[hash.length - 1] & 0x0f;
     const binCode = ((hash[offset] & 0x7f) << 24) |
                     ((hash[offset + 1] & 0xff) << 16) |
@@ -365,20 +439,23 @@
     ringEl.style.strokeDashoffset = offset;
   }
 
-  async function refreshCodes() {
+  function refreshCodes() {
     if (!activeSecretBytes) return;
-    const now = Math.floor(Date.now() / 1000);
-    const remaining = PERIOD - (now % PERIOD);
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const remaining = PERIOD - (now % PERIOD);
 
-    const [c1, c2] = await Promise.all([
-      totpAt(activeSecretBytes, now),
-      totpAt(activeSecretBytes, now + PERIOD)
-    ]);
+      const c1 = totpAt(activeSecretBytes, now);
+      const c2 = totpAt(activeSecretBytes, now + PERIOD);
 
-    code1El.textContent = formatCode(c1);
-    code2El.textContent = formatCode(c2);
-    setRing(ring1, remaining / PERIOD);
-    setRing(ring2, remaining / PERIOD);
+      code1El.textContent = formatCode(c1);
+      code2El.textContent = formatCode(c2);
+      setRing(ring1, remaining / PERIOD);
+      setRing(ring2, remaining / PERIOD);
+    } catch (err) {
+      showError('Something went wrong generating the code: ' + err.message);
+      if (tickHandle) clearInterval(tickHandle);
+    }
   }
 
   function startTicking() {
@@ -399,7 +476,7 @@
     secretInput.classList.remove('invalid');
   }
 
-  async function handleGenerate() {
+  function handleGenerate() {
     const raw = secretInput.value.trim();
     clearError();
 
