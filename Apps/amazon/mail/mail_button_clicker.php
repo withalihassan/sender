@@ -7,7 +7,11 @@ function mail_process_pending_button_clicks($pdo, $accountId)
         WHERE account_id = ?
           AND verification_url IS NOT NULL
           AND verification_url <> ''
-          AND (button_click_status IS NULL OR button_click_status = '' OR button_click_status = 'Pending')
+          AND (
+              button_click_status IS NULL
+              OR button_click_status = ''
+              OR button_click_status IN ('Pending', 'Button Not Found', 'Button Found', 'Click Failed')
+          )
         ORDER BY id ASC
         LIMIT 5
     ");
@@ -28,7 +32,7 @@ function mail_click_event_button($pdo, $eventId, $url)
         $button = mail_find_target_button($page['body']);
 
         if (!$button) {
-            mail_update_button_click($pdo, $eventId, 'Button Not Found', 'Target button was not found in loaded page source.');
+            mail_update_button_click($pdo, $eventId, 'Button Not Found', mail_button_debug_summary($page));
             return;
         }
 
@@ -108,13 +112,55 @@ function mail_find_target_button($html)
         return $nodes->item(0);
     }
 
-    $nodes = $xpath->query('//button[.//*[normalize-space(.) = "SMS text"] or normalize-space(.) = "SMS text"]');
+    $nodes = $xpath->query('//button[@type="submit" and (.//*[normalize-space(.) = "SMS text"] or normalize-space(.) = "SMS text")]');
 
     if ($nodes && $nodes->length > 0) {
         return $nodes->item(0);
     }
 
     return null;
+}
+
+function mail_button_debug_summary($page)
+{
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $dom->loadHTML($page['body']);
+    $xpath = new DOMXPath($dom);
+    $titleNode = $xpath->query('//title')->item(0);
+    $title = $titleNode ? trim($titleNode->textContent) : '';
+    $buttons = [];
+
+    foreach ($xpath->query('//button') as $button) {
+        $text = trim(preg_replace('/\s+/', ' ', $button->textContent));
+        $testId = trim($button->getAttribute('data-testid'));
+
+        if ($testId !== '' || $text !== '') {
+            $buttons[] = ($testId !== '' ? 'data-testid=' . $testId : 'no-testid') . ($text !== '' ? ' text=' . $text : '');
+        }
+
+        if (count($buttons) >= 5) {
+            break;
+        }
+    }
+
+    $parts = ['Target SMS button was not found in loaded page source.'];
+
+    if (!empty($page['url'])) {
+        $parts[] = 'Final URL: ' . $page['url'];
+    }
+
+    if ($title !== '') {
+        $parts[] = 'Title: ' . $title;
+    }
+
+    if ($buttons) {
+        $parts[] = 'Buttons found: ' . implode(' | ', $buttons);
+    } else {
+        $parts[] = 'Buttons found: none';
+    }
+
+    return implode(' ', $parts);
 }
 
 function mail_build_button_click_request($button, $pageUrl)
