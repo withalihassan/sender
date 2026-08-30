@@ -102,7 +102,7 @@ function mail_find_target_button($html)
     $dom = new DOMDocument();
     $dom->loadHTML($html);
     $xpath = new DOMXPath($dom);
-    $nodes = $xpath->query('//button[@data-testid="Test-button-ID" and contains(concat(" ", normalize-space(@class), " "), " testing-button-class ")]');
+    $nodes = $xpath->query('//button[@data-testid="send-sms-message-button" and contains(concat(" ", normalize-space(@class), " "), " awsui_button_vjswe_k6olt_157 ")]');
 
     if (!$nodes || $nodes->length === 0) {
         return null;
