@@ -50,5 +50,13 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$accountId]);
 
-json_response(['success' => true, 'events' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+$events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+foreach ($events as &$event) {
+    $path = mail_loaded_html_full_path((int) $event['id']);
+    $event['loaded_html_url'] = file_exists($path) ? mail_loaded_html_relative_path((int) $event['id']) : '';
+}
+unset($event);
+
+json_response(['success' => true, 'events' => $events]);
 ?>

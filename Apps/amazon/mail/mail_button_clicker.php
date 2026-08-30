@@ -29,6 +29,7 @@ function mail_click_event_button($pdo, $eventId, $url)
 
     try {
         $page = mail_http_request($url, 'GET', [], $cookieFile);
+        mail_save_loaded_html($eventId, $page['body']);
         $button = mail_find_target_button($page['body']);
 
         if (!$button) {
@@ -76,6 +77,13 @@ function mail_http_request($url, $method = 'GET', $fields = [], $cookieFile = nu
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_COOKIEJAR, $cookieFile);
     curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
+    curl_setopt($ch, CURLOPT_ENCODING, '');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language: en-US,en;q=0.9',
+        'Cache-Control: no-cache',
+        'Pragma: no-cache',
+    ]);
     curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36');
 
     if (strtoupper($method) === 'POST') {
@@ -98,6 +106,28 @@ function mail_http_request($url, $method = 'GET', $fields = [], $cookieFile = nu
     }
 
     return ['body' => $body, 'url' => $finalUrl, 'cookie_file' => $cookieFile];
+}
+
+function mail_loaded_html_relative_path($eventId)
+{
+    return 'data/mail-loaded-pages/event-' . (int) $eventId . '.html';
+}
+
+function mail_loaded_html_full_path($eventId)
+{
+    return __DIR__ . '/../' . mail_loaded_html_relative_path($eventId);
+}
+
+function mail_save_loaded_html($eventId, $html)
+{
+    $path = mail_loaded_html_full_path($eventId);
+    $dir = dirname($path);
+
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+
+    file_put_contents($path, $html);
 }
 
 function mail_find_target_button($html)

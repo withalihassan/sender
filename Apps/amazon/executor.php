@@ -221,6 +221,7 @@ if (!$account) {
                     ? '<div class="mail-actions">' +
                         '<a class="mail-link" href="' + $('<div>').text(link).html() + '" target="_blank" rel="noopener noreferrer">Open Link</a>' +
                         '<button type="button" class="mail-copy" data-link="' + $('<div>').text(link).html() + '">Copy Link</button>' +
+                        (event.loaded_html_url ? '<a class="mail-link" href="' + $('<div>').text(event.loaded_html_url).html() + '" target="_blank" rel="noopener noreferrer">Loaded HTML</a>' : '') +
                     '</div>'
                     : '';
                 const clickStatus = event.button_click_status || (link ? 'Pending' : '');
