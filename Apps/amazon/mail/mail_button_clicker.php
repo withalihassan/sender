@@ -102,13 +102,19 @@ function mail_find_target_button($html)
     $dom = new DOMDocument();
     $dom->loadHTML($html);
     $xpath = new DOMXPath($dom);
-    $nodes = $xpath->query('//button[@data-testid="send-sms-message-button" and contains(concat(" ", normalize-space(@class), " "), " awsui_button_vjswe_k6olt_157 ")]');
+    $nodes = $xpath->query('//button[@data-testid="send-sms-message-button"]');
 
-    if (!$nodes || $nodes->length === 0) {
-        return null;
+    if ($nodes && $nodes->length > 0) {
+        return $nodes->item(0);
     }
 
-    return $nodes->item(0);
+    $nodes = $xpath->query('//button[.//*[normalize-space(.) = "SMS text"] or normalize-space(.) = "SMS text"]');
+
+    if ($nodes && $nodes->length > 0) {
+        return $nodes->item(0);
+    }
+
+    return null;
 }
 
 function mail_build_button_click_request($button, $pageUrl)
