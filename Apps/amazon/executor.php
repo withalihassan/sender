@@ -80,6 +80,7 @@ if (!$account) {
             vertical-align: top;
         }
         .mail-table th { background: #f8fafc; font-size: 13px; }
+        .mail-date { color: #64748b; font-size: 12px; font-weight: 400; }
         .mail-link { color: #111827; background: #ff9900; padding: 9px 12px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block; }
         .message { margin-top: 14px; font-weight: 700; color: #991b1b; }
         @media (max-width: 820px) {
@@ -217,7 +218,7 @@ if (!$account) {
 
                 $('#mailEventsBody').append(
                     '<tr data-event-id="' + event.id + '">' +
-                    '<td>Done</td>' +
+                    '<td>Done<br><span class="mail-date">' + $('<div>').text(event.received_at || '').html() + '</span></td>' +
                     '<td>' + openLink + '</td>' +
                     '</tr>'
                 );
