@@ -13,6 +13,54 @@ function mail_text_from_message($message)
     return implode("\n\n", array_unique($parts));
 }
 
+function mail_html_from_message($message)
+{
+    $parts = [];
+    mail_collect_raw_parts($message['html'] ?? null, $parts);
+    return implode("\n", array_filter(array_map('trim', $parts)));
+}
+
+function mail_collect_raw_parts($value, &$parts)
+{
+    if (is_string($value) && trim($value) !== '') {
+        $parts[] = $value;
+        return;
+    }
+
+    if (!is_array($value)) {
+        return;
+    }
+
+    foreach ($value as $item) {
+        mail_collect_raw_parts($item, $parts);
+    }
+}
+
+function mail_verification_url_from_message($message)
+{
+    $html = mail_html_from_message($message);
+
+    if ($html !== '') {
+        libxml_use_internal_errors(true);
+        $dom = new DOMDocument();
+        $dom->loadHTML($html);
+        $xpath = new DOMXPath($dom);
+        $node = $xpath->query('//*[@id="emailVerificationUrl"]')->item(0);
+
+        if ($node && $node->getAttribute('href') !== '') {
+            return html_entity_decode($node->getAttribute('href'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+    }
+
+    $source = $html . "\n" . mail_text_from_message($message);
+
+    if (preg_match('/https:\/\/signin\.aws\.amazon\.com\/noMfa\?[^"\'<>\s]+/i', $source, $match)) {
+        return html_entity_decode(rtrim($match[0], '.,);]'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    return '';
+}
+
 function mail_collect_text_parts($value, &$parts, $isHtml)
 {
     if (is_string($value) && trim($value) !== '') {

@@ -74,18 +74,13 @@ if (!$account) {
         }
         .mail-stats div { display: flex; justify-content: space-between; gap: 14px; }
         .mail-table-wrap { overflow-x: auto; }
-        .mail-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+        .mail-table { width: 100%; border-collapse: collapse; min-width: 420px; }
         .mail-table th, .mail-table td {
             padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: left;
             vertical-align: top;
         }
         .mail-table th { background: #f8fafc; font-size: 13px; }
-        .mail-meta { white-space: nowrap; font-size: 13px; }
-        .mail-body {
-            max-width: 360px; max-height: 220px; overflow: auto; margin: 0;
-            white-space: pre-wrap; overflow-wrap: anywhere; font-family: Arial, sans-serif;
-            font-size: 13px; line-height: 1.45; color: #111827;
-        }
+        .mail-link { color: #111827; background: #ff9900; padding: 9px 12px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block; }
         .message { margin-top: 14px; font-weight: 700; color: #991b1b; }
         @media (max-width: 820px) {
             .topbar { flex-direction: column; align-items: flex-start; }
@@ -140,6 +135,7 @@ if (!$account) {
                 <h2>Mail Execution</h2>
                 <div class="buttons">
                     <button type="button" class="primary" id="mailStartBtn">Start Mail Execution</button>
+                    <button type="button" class="muted" id="mailFlushBtn">Flush Data</button>
                 </div>
 
                 <div class="mail-stats">
@@ -153,11 +149,8 @@ if (!$account) {
                     <table class="mail-table">
                         <thead>
                             <tr>
-                                <th>Received</th>
-                                <th>From</th>
-                                <th>To</th>
-                                <th>Subject</th>
-                                <th>Complete Email</th>
+                                <th>Email Received</th>
+                                <th>Open Link</th>
                             </tr>
                         </thead>
                         <tbody id="mailEventsBody"></tbody>
@@ -211,21 +204,21 @@ if (!$account) {
 
             if (!events.length) {
                 $('#mailEventsBody').append(
-                    '<tr><td colspan="5">No received email yet.</td></tr>'
+                    '<tr><td colspan="2">No received email yet.</td></tr>'
                 );
                 return;
             }
 
             events.forEach(function (event) {
-                const body = event.email_text || event.email_json || '';
+                const link = event.verification_url || '';
+                const openLink = link
+                    ? '<a class="mail-link" href="' + $('<div>').text(link).html() + '" target="_blank" rel="noopener noreferrer">Open Link</a>'
+                    : '';
 
                 $('#mailEventsBody').append(
                     '<tr data-event-id="' + event.id + '">' +
-                    '<td class="mail-meta">' + $('<div>').text(event.created_at || '').html() + '</td>' +
-                    '<td>' + $('<div>').text(event.sender || '').html() + '</td>' +
-                    '<td>' + $('<div>').text(event.recipient || '').html() + '</td>' +
-                    '<td>' + $('<div>').text(event.subject || '').html() + '</td>' +
-                    '<td><pre class="mail-body">' + $('<div>').text(body).html() + '</pre></td>' +
+                    '<td>Done</td>' +
+                    '<td>' + openLink + '</td>' +
                     '</tr>'
                 );
             });
@@ -281,6 +274,17 @@ if (!$account) {
             }, 'json').fail(function () {
                 $('#mailMessage').text('Request failed. Please try again.');
                 $('#mailStartBtn').prop('disabled', false).text('Start Mail Execution');
+            });
+        });
+
+        $('#mailFlushBtn').on('click', function () {
+            $.post('ajax/mail_flush.php', { account_id: accountId }, function (res) {
+                $('#mailMessage').text(res.message);
+                $('#mailEventsBody').empty();
+                renderMailEvents([]);
+                updateMailStatus();
+            }, 'json').fail(function () {
+                $('#mailMessage').text('Request failed. Please try again.');
             });
         });
 

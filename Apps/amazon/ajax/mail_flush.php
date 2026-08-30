@@ -34,5 +34,5 @@ $runs->execute([$accountId]);
 
 $pdo->commit();
 
-json_response(['success' => true, 'message' => 'Mail Execution data cleared.']);
+json_response(['success' => true, 'message' => 'Mail Execution data flushed.']);
 ?>

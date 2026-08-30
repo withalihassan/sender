@@ -8,14 +8,41 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require '../includes/database.php';
+require '../mail/mail_processor.php';
 
 ensure_amazon_tables($pdo);
 
 $accountId = (int) ($_POST['account_id'] ?? 0);
-$stmt = $pdo->prepare("
-    SELECT id, sender, recipient, subject, email_text, email_json, status, error_message, created_at
+
+$missing = $pdo->prepare("
+    SELECT id, email_json
     FROM mail_execution_events
     WHERE account_id = ?
+      AND sender = 'recover-mfa-no-reply@verify.signin.aws'
+      AND (verification_url IS NULL OR verification_url = '')
+");
+$missing->execute([$accountId]);
+$update = $pdo->prepare("UPDATE mail_execution_events SET verification_url = ?, updated_at = NOW() WHERE id = ?");
+
+foreach ($missing->fetchAll(PDO::FETCH_ASSOC) as $event) {
+    $message = json_decode($event['email_json'] ?: '', true);
+
+    if (!is_array($message)) {
+        continue;
+    }
+
+    $url = mail_verification_url_from_message($message);
+
+    if ($url !== '') {
+        $update->execute([$url, $event['id']]);
+    }
+}
+
+$stmt = $pdo->prepare("
+    SELECT id, verification_url, created_at
+    FROM mail_execution_events
+    WHERE account_id = ?
+      AND sender = 'recover-mfa-no-reply@verify.signin.aws'
     ORDER BY id ASC
 ");
 $stmt->execute([$accountId]);
