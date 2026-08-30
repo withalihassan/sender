@@ -28,11 +28,18 @@ function mail_click_event_button($pdo, $eventId, $url)
     $cookieFile = tempnam(sys_get_temp_dir(), 'amazon_mail_cookie_');
 
     try {
-        $page = mail_http_request($url, 'GET', [], $cookieFile);
-        mail_save_loaded_html($eventId, $page['body']);
-        $directSms = mail_send_sms_from_aws_page($page, $cookieFile, $eventId);
+        $directSms = mail_send_sms_from_verification_url($url, $cookieFile, $eventId);
 
         if ($directSms['success']) {
+            mail_update_button_click($pdo, $eventId, 'Clicked Done', null);
+            return;
+        }
+
+        $page = mail_http_request($url, 'GET', [], $cookieFile);
+        mail_save_loaded_html($eventId, $page['body']);
+        $pageDirectSms = mail_send_sms_from_aws_page($page, $cookieFile, $eventId);
+
+        if ($pageDirectSms['success']) {
             mail_update_button_click($pdo, $eventId, 'Clicked Done', null);
             return;
         }
@@ -40,7 +47,7 @@ function mail_click_event_button($pdo, $eventId, $url)
         $button = mail_find_target_button($page['body']);
 
         if (!$button) {
-            mail_update_button_click($pdo, $eventId, 'Button Not Found', mail_button_debug_summary($page, $directSms['message']));
+            mail_update_button_click($pdo, $eventId, 'Button Not Found', mail_button_debug_summary($page, $directSms['message'] . ' ' . $pageDirectSms['message']));
             return;
         }
 
@@ -85,12 +92,22 @@ function mail_http_request($url, $method = 'GET', $fields = [], $cookieFile = nu
     curl_setopt($ch, CURLOPT_COOKIEJAR, $cookieFile);
     curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
     curl_setopt($ch, CURLOPT_ENCODING, '');
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    $headers = [
         'Accept-Language: en-US,en;q=0.9',
         'Cache-Control: no-cache',
         'Pragma: no-cache',
-    ]);
+    ];
+
+    if (strtoupper($method) === 'POST') {
+        $headers[] = 'Accept: application/json, text/plain, */*';
+        $headers[] = 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8';
+        $headers[] = 'Origin: https://signin.aws.amazon.com';
+        $headers[] = 'Referer: https://signin.aws.amazon.com/noMfa';
+    } else {
+        $headers[] = 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8';
+    }
+
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36');
 
     if (strtoupper($method) === 'POST') {
@@ -115,6 +132,28 @@ function mail_http_request($url, $method = 'GET', $fields = [], $cookieFile = nu
     return ['body' => $body, 'url' => $finalUrl, 'cookie_file' => $cookieFile];
 }
 
+function mail_send_sms_from_verification_url($url, $cookieFile, $eventId)
+{
+    $query = parse_url($url, PHP_URL_QUERY);
+    parse_str($query ?: '', $params);
+    $token = $params['token'] ?? '';
+    $key = $params['key'] ?? '';
+
+    if ($token === '' || $key === '') {
+        return ['success' => false, 'message' => 'Fresh URL direct SMS submit skipped because token/key was missing.'];
+    }
+
+    $endpoint = mail_absolute_url('noMfa', $url);
+    $response = mail_http_request($endpoint, 'POST', [
+        'action' => 'smsMessage',
+        'key' => $key,
+        'token' => $token,
+    ], $cookieFile);
+    mail_save_loaded_html($eventId . '-direct-sms-response', $response['body']);
+
+    return mail_parse_sms_submit_response($response['body'], 'Fresh URL direct SMS submit');
+}
+
 function mail_send_sms_from_aws_page($page, $cookieFile, $eventId)
 {
     $payload = mail_aws_sms_payload($page);
@@ -135,23 +174,30 @@ function mail_send_sms_from_aws_page($page, $cookieFile, $eventId)
     $endpoint = mail_absolute_url('noMfa', $page['url']);
     $response = mail_http_request($endpoint, 'POST', $body, $cookieFile);
     mail_save_loaded_html($eventId . '-sms-response', $response['body']);
-    $json = json_decode($response['body'], true);
+
+    return mail_parse_sms_submit_response($response['body'], 'Loaded page direct SMS submit');
+}
+
+function mail_parse_sms_submit_response($body, $label)
+{
+    $json = json_decode($body, true);
 
     if (!is_array($json)) {
-        return ['success' => false, 'message' => 'Direct SMS submit returned non-JSON response.'];
+        return ['success' => false, 'message' => $label . ' returned non-JSON response.'];
     }
 
     $state = strtoupper((string) ($json['state'] ?? ''));
     $properties = is_array($json['properties'] ?? null) ? $json['properties'] : [];
     $smsStatus = strtoupper((string) ($properties['smsStatus'] ?? ''));
+    $errorCode = (string) ($properties['errorCode'] ?? ($json['errorCode'] ?? ''));
 
     if ($state === 'SUCCESS' && ($smsStatus === '' || $smsStatus === 'VERIFICATION_SUCCESS')) {
-        return ['success' => true, 'message' => 'SMS request submitted directly.'];
+        return ['success' => true, 'message' => $label . ' succeeded.'];
     }
 
     return [
         'success' => false,
-        'message' => 'Direct SMS submit response: state=' . ($state ?: 'unknown') . ' smsStatus=' . ($smsStatus ?: 'unknown'),
+        'message' => $label . ' response: state=' . ($state ?: 'unknown') . ' smsStatus=' . ($smsStatus ?: 'unknown') . ($errorCode !== '' ? ' errorCode=' . $errorCode : ''),
     ];
 }
 
