@@ -62,6 +62,9 @@ function ensure_amazon_tables($pdo)
             recipient VARCHAR(255) DEFAULT NULL,
             subject VARCHAR(500) DEFAULT NULL,
             verification_url TEXT DEFAULT NULL,
+            button_clicked TINYINT(1) NOT NULL DEFAULT 0,
+            button_click_status VARCHAR(40) DEFAULT NULL,
+            button_click_error TEXT DEFAULT NULL,
             email_text MEDIUMTEXT DEFAULT NULL,
             email_json MEDIUMTEXT DEFAULT NULL,
             email_received TINYINT(1) NOT NULL DEFAULT 0,
@@ -78,6 +81,9 @@ function ensure_amazon_tables($pdo)
     ensure_column($pdo, 'mail_execution_events', 'recipient', "VARCHAR(255) DEFAULT NULL");
     ensure_column($pdo, 'mail_execution_events', 'subject', "VARCHAR(500) DEFAULT NULL");
     ensure_column($pdo, 'mail_execution_events', 'verification_url', "TEXT DEFAULT NULL");
+    ensure_column($pdo, 'mail_execution_events', 'button_clicked', "TINYINT(1) NOT NULL DEFAULT 0");
+    ensure_column($pdo, 'mail_execution_events', 'button_click_status', "VARCHAR(40) DEFAULT NULL");
+    ensure_column($pdo, 'mail_execution_events', 'button_click_error', "TEXT DEFAULT NULL");
     ensure_column($pdo, 'mail_execution_events', 'email_text', "MEDIUMTEXT DEFAULT NULL");
     ensure_column($pdo, 'mail_execution_events', 'email_json', "MEDIUMTEXT DEFAULT NULL");
 }

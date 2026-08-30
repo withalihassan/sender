@@ -81,7 +81,11 @@ if (!$account) {
         }
         .mail-table th { background: #f8fafc; font-size: 13px; }
         .mail-date { color: #64748b; font-size: 12px; font-weight: 400; }
+        .mail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
         .mail-link { color: #111827; background: #ff9900; padding: 9px 12px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block; }
+        .mail-copy { color: #fff; background: #64748b; padding: 9px 12px; border-radius: 6px; font-weight: 700; }
+        .mail-click-status { font-weight: 700; }
+        .mail-click-error { color: #991b1b; font-size: 12px; margin-top: 5px; }
         .message { margin-top: 14px; font-weight: 700; color: #991b1b; }
         @media (max-width: 820px) {
             .topbar { flex-direction: column; align-items: flex-start; }
@@ -152,6 +156,7 @@ if (!$account) {
                             <tr>
                                 <th>Email Received</th>
                                 <th>Open Link</th>
+                                <th>Button Clicked</th>
                             </tr>
                         </thead>
                         <tbody id="mailEventsBody"></tbody>
@@ -205,7 +210,7 @@ if (!$account) {
 
             if (!events.length) {
                 $('#mailEventsBody').append(
-                    '<tr><td colspan="2">No received email yet.</td></tr>'
+                    '<tr><td colspan="3">No received email yet.</td></tr>'
                 );
                 return;
             }
@@ -213,17 +218,37 @@ if (!$account) {
             events.forEach(function (event) {
                 const link = event.verification_url || '';
                 const openLink = link
-                    ? '<a class="mail-link" href="' + $('<div>').text(link).html() + '" target="_blank" rel="noopener noreferrer">Open Link</a>'
+                    ? '<div class="mail-actions">' +
+                        '<a class="mail-link" href="' + $('<div>').text(link).html() + '" target="_blank" rel="noopener noreferrer">Open Link</a>' +
+                        '<button type="button" class="mail-copy" data-link="' + $('<div>').text(link).html() + '">Copy Link</button>' +
+                    '</div>'
+                    : '';
+                const clickStatus = event.button_click_status || (link ? 'Pending' : '');
+                const clickError = event.button_click_error
+                    ? '<div class="mail-click-error">' + $('<div>').text(event.button_click_error).html() + '</div>'
                     : '';
 
                 $('#mailEventsBody').append(
                     '<tr data-event-id="' + event.id + '">' +
                     '<td>Done<br><span class="mail-date">' + $('<div>').text(event.received_at || '').html() + '</span></td>' +
                     '<td>' + openLink + '</td>' +
+                    '<td><span class="mail-click-status">' + $('<div>').text(clickStatus).html() + '</span>' + clickError + '</td>' +
                     '</tr>'
                 );
             });
         }
+
+        $(document).on('click', '.mail-copy', function () {
+            const button = $(this);
+            const link = button.data('link');
+
+            navigator.clipboard.writeText(link).then(function () {
+                button.text('Copied');
+                setTimeout(function () {
+                    button.text('Copy Link');
+                }, 1200);
+            });
+        });
 
         function updateMailStatus() {
             $.post('ajax/mail_status.php', { account_id: accountId }, function (res) {
