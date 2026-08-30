@@ -30,10 +30,17 @@ function mail_click_event_button($pdo, $eventId, $url)
     try {
         $page = mail_http_request($url, 'GET', [], $cookieFile);
         mail_save_loaded_html($eventId, $page['body']);
+        $directSms = mail_send_sms_from_aws_page($page, $cookieFile, $eventId);
+
+        if ($directSms['success']) {
+            mail_update_button_click($pdo, $eventId, 'Clicked Done', null);
+            return;
+        }
+
         $button = mail_find_target_button($page['body']);
 
         if (!$button) {
-            mail_update_button_click($pdo, $eventId, 'Button Not Found', mail_button_debug_summary($page));
+            mail_update_button_click($pdo, $eventId, 'Button Not Found', mail_button_debug_summary($page, $directSms['message']));
             return;
         }
 
@@ -108,9 +115,95 @@ function mail_http_request($url, $method = 'GET', $fields = [], $cookieFile = nu
     return ['body' => $body, 'url' => $finalUrl, 'cookie_file' => $cookieFile];
 }
 
+function mail_send_sms_from_aws_page($page, $cookieFile, $eventId)
+{
+    $payload = mail_aws_sms_payload($page);
+
+    if (!$payload) {
+        return ['success' => false, 'message' => 'Could not extract AWS token/key for direct SMS submit.'];
+    }
+
+    if (!empty($payload['linkExpired']) || !empty($payload['linkUsed'])) {
+        return ['success' => false, 'message' => 'AWS says this email link is expired or already used.'];
+    }
+
+    $body = [
+        'action' => 'smsMessage',
+        'key' => $payload['key'],
+        'token' => $payload['token'],
+    ];
+    $endpoint = mail_absolute_url('noMfa', $page['url']);
+    $response = mail_http_request($endpoint, 'POST', $body, $cookieFile);
+    mail_save_loaded_html($eventId . '-sms-response', $response['body']);
+    $json = json_decode($response['body'], true);
+
+    if (!is_array($json)) {
+        return ['success' => false, 'message' => 'Direct SMS submit returned non-JSON response.'];
+    }
+
+    $state = strtoupper((string) ($json['state'] ?? ''));
+    $properties = is_array($json['properties'] ?? null) ? $json['properties'] : [];
+    $smsStatus = strtoupper((string) ($properties['smsStatus'] ?? ''));
+
+    if ($state === 'SUCCESS' && ($smsStatus === '' || $smsStatus === 'VERIFICATION_SUCCESS')) {
+        return ['success' => true, 'message' => 'SMS request submitted directly.'];
+    }
+
+    return [
+        'success' => false,
+        'message' => 'Direct SMS submit response: state=' . ($state ?: 'unknown') . ' smsStatus=' . ($smsStatus ?: 'unknown'),
+    ];
+}
+
+function mail_aws_sms_payload($page)
+{
+    $query = parse_url($page['url'], PHP_URL_QUERY);
+    parse_str($query ?: '', $params);
+    $attributes = mail_aws_page_attributes($page['body']);
+    $actionToken = [];
+
+    if (!empty($attributes['actionToken'])) {
+        $decodedActionToken = json_decode($attributes['actionToken'], true);
+        $actionToken = is_array($decodedActionToken) ? $decodedActionToken : [];
+    }
+
+    $token = $params['token'] ?? ($attributes['token'] ?? ($actionToken['token'] ?? ''));
+    $key = $params['key'] ?? ($attributes['key'] ?? ($actionToken['key'] ?? ''));
+
+    if ($token === '' || $key === '') {
+        return null;
+    }
+
+    return [
+        'token' => $token,
+        'key' => $key,
+        'linkExpired' => strtolower((string) ($attributes['linkExpired'] ?? 'false')) === 'true',
+        'linkUsed' => strtolower((string) ($attributes['linkUsed'] ?? 'false')) === 'true',
+    ];
+}
+
+function mail_aws_page_attributes($html)
+{
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $dom->loadHTML($html);
+    $xpath = new DOMXPath($dom);
+    $node = $xpath->query('//meta[@name="attributes"]')->item(0);
+
+    if (!$node) {
+        return [];
+    }
+
+    $decoded = base64_decode($node->getAttribute('content'), true);
+    $attributes = json_decode($decoded ?: '', true);
+
+    return is_array($attributes) ? $attributes : [];
+}
+
 function mail_loaded_html_relative_path($eventId)
 {
-    return 'data/mail-loaded-pages/event-' . (int) $eventId . '.html';
+    $name = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $eventId);
+    return 'data/mail-loaded-pages/event-' . $name . '.html';
 }
 
 function mail_loaded_html_full_path($eventId)
@@ -151,7 +244,7 @@ function mail_find_target_button($html)
     return null;
 }
 
-function mail_button_debug_summary($page)
+function mail_button_debug_summary($page, $extra = '')
 {
     libxml_use_internal_errors(true);
     $dom = new DOMDocument();
@@ -175,6 +268,10 @@ function mail_button_debug_summary($page)
     }
 
     $parts = ['Target SMS button was not found in loaded page source.'];
+
+    if ($extra !== '') {
+        $parts[] = $extra;
+    }
 
     if (!empty($page['url'])) {
         $parts[] = 'Final URL: ' . $page['url'];
