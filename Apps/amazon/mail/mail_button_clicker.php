@@ -75,11 +75,14 @@ function mail_save_loaded_html($eventId, $html)
 
 function mail_browser_click_sms_button($eventId, $url)
 {
-    $node = '/usr/local/bin/node';
+    $node = mail_find_node_binary();
     $script = __DIR__ . '/click_sms_button.js';
 
-    if (!is_file($node)) {
-        $node = 'node';
+    if ($node === '') {
+        return [
+            'success' => false,
+            'message' => 'Node.js was not found. Install node on the server or set NODE_PATH to the full node binary path.',
+        ];
     }
 
     if (!is_file($script)) {
@@ -136,5 +139,38 @@ function mail_browser_click_sms_button($eventId, $url)
         'success' => false,
         'message' => 'Browser click failed with exit code ' . $exitCode . '. ' . trim($stdout . ' ' . $stderr),
     ];
+}
+
+function mail_find_node_binary()
+{
+    $candidates = [
+        getenv('NODE_PATH') ?: '',
+        '/usr/local/bin/node',
+        '/usr/bin/node',
+        '/bin/node',
+        '/snap/bin/node',
+        '/usr/bin/nodejs',
+        '/bin/nodejs',
+    ];
+
+    foreach ($candidates as $candidate) {
+        if ($candidate !== '' && is_file($candidate) && is_executable($candidate)) {
+            return $candidate;
+        }
+    }
+
+    $path = trim((string) shell_exec('command -v node 2>/dev/null'));
+
+    if ($path !== '' && is_file($path) && is_executable($path)) {
+        return $path;
+    }
+
+    $path = trim((string) shell_exec('command -v nodejs 2>/dev/null'));
+
+    if ($path !== '' && is_file($path) && is_executable($path)) {
+        return $path;
+    }
+
+    return '';
 }
 ?>
