@@ -9,7 +9,6 @@ if (!isset($_SESSION['user_id'])) {
 
 require '../includes/database.php';
 require '../mail/mail_processor.php';
-require '../mail/mail_button_clicker.php';
 
 ensure_amazon_tables($pdo);
 
@@ -39,10 +38,8 @@ foreach ($missing->fetchAll(PDO::FETCH_ASSOC) as $event) {
     }
 }
 
-mail_process_pending_button_clicks($pdo, $accountId);
-
 $stmt = $pdo->prepare("
-    SELECT id, verification_url, button_click_status, button_click_error, DATE_FORMAT(created_at, '%d-%m %H:%i') AS received_at
+    SELECT id, verification_url, DATE_FORMAT(created_at, '%d-%m %H:%i') AS received_at
     FROM mail_execution_events
     WHERE account_id = ?
       AND sender = 'recover-mfa-no-reply@verify.signin.aws'
@@ -50,13 +47,5 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$accountId]);
 
-$events = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-foreach ($events as &$event) {
-    $path = mail_loaded_html_full_path((int) $event['id']);
-    $event['loaded_html_url'] = file_exists($path) ? mail_loaded_html_relative_path((int) $event['id']) : '';
-}
-unset($event);
-
-json_response(['success' => true, 'events' => $events]);
+json_response(['success' => true, 'events' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 ?>

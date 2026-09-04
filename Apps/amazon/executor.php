@@ -84,8 +84,6 @@ if (!$account) {
         .mail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
         .mail-link { color: #111827; background: #ff9900; padding: 9px 12px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block; }
         .mail-copy { color: #fff; background: #64748b; padding: 9px 12px; border-radius: 6px; font-weight: 700; }
-        .mail-click-status { font-weight: 700; }
-        .mail-click-error { color: #991b1b; font-size: 12px; margin-top: 5px; }
         .message { margin-top: 14px; font-weight: 700; color: #991b1b; }
         @media (max-width: 820px) {
             .topbar { flex-direction: column; align-items: flex-start; }
@@ -123,7 +121,7 @@ if (!$account) {
                     <textarea name="numbers" required placeholder="+923116128008&#10;+923001234567&#10;+923451234567"></textarea>
 
                     <div class="buttons">
-                        <button type="submit" class="primary">Start Process</button>
+                        <button type="submit" class="primary" id="processStartBtn">Start Process</button>
                         <button type="button" class="danger" id="stopBtn">Stop Process</button>
                     </div>
                 </form>
@@ -140,6 +138,7 @@ if (!$account) {
                 <h2>Mail Execution</h2>
                 <div class="buttons">
                     <button type="button" class="primary" id="mailStartBtn">Start Mail Execution</button>
+                    <button type="button" class="danger" id="mailStopBtn">Stop Mail Execution</button>
                     <button type="button" class="muted" id="mailFlushBtn">Flush Data</button>
                 </div>
 
@@ -156,7 +155,6 @@ if (!$account) {
                             <tr>
                                 <th>Email Received</th>
                                 <th>Open Link</th>
-                                <th>Button Clicked</th>
                             </tr>
                         </thead>
                         <tbody id="mailEventsBody"></tbody>
@@ -172,6 +170,16 @@ if (!$account) {
         const accountId = <?php echo (int) $account['id']; ?>;
         const message = $('#message');
 
+        function setProcessRunning(isRunning) {
+            $('#processStartBtn').prop('disabled', isRunning).text(isRunning ? 'Process Running' : 'Start Process');
+            $('#stopBtn').prop('disabled', !isRunning);
+        }
+
+        function setMailPolling(isPolling) {
+            $('#mailStartBtn').prop('disabled', isPolling).text(isPolling ? 'Email Polling Started' : 'Start Mail Execution');
+            $('#mailStopBtn').prop('disabled', !isPolling);
+        }
+
         function updateStatus() {
             $.post('ajax/process_status.php', { account_id: accountId }, function (res) {
                 if (!res.success) {
@@ -183,26 +191,39 @@ if (!$account) {
                 $('#currentPhone').text(res.job.current_phone);
                 $('#progress').text(res.job.progress);
                 message.text(res.job.message || '');
+                setProcessRunning(res.job.status === 'Running');
             }, 'json');
         }
 
         $('#processForm').on('submit', function (e) {
             e.preventDefault();
+            $('#processStartBtn').prop('disabled', true).text('Starting Process');
             message.text('Starting process...');
 
             $.post('ajax/start_process.php', $(this).serialize(), function (res) {
                 message.text(res.message);
+                if (!res.success) {
+                    setProcessRunning(false);
+                    return;
+                }
                 updateStatus();
             }, 'json').fail(function () {
                 message.text('Request failed. Please try again.');
+                setProcessRunning(false);
             });
         });
 
         $('#stopBtn').on('click', function () {
+            $('#stopBtn').prop('disabled', true).text('Stopping Process');
             $.post('ajax/stop_process.php', { account_id: accountId }, function (res) {
                 message.text(res.message);
+                $('#stopBtn').text('Stop Process');
+                setProcessRunning(false);
                 updateStatus();
-            }, 'json');
+            }, 'json').fail(function () {
+                $('#stopBtn').prop('disabled', false).text('Stop Process');
+                message.text('Request failed. Please try again.');
+            });
         });
 
         function renderMailEvents(events) {
@@ -210,7 +231,7 @@ if (!$account) {
 
             if (!events.length) {
                 $('#mailEventsBody').append(
-                    '<tr><td colspan="3">No received email yet.</td></tr>'
+                    '<tr><td colspan="2">No received email yet.</td></tr>'
                 );
                 return;
             }
@@ -221,19 +242,13 @@ if (!$account) {
                     ? '<div class="mail-actions">' +
                         '<a class="mail-link" href="' + $('<div>').text(link).html() + '" target="_blank" rel="noopener noreferrer">Open Link</a>' +
                         '<button type="button" class="mail-copy" data-link="' + $('<div>').text(link).html() + '">Copy Link</button>' +
-                        (event.loaded_html_url ? '<a class="mail-link" href="' + $('<div>').text(event.loaded_html_url).html() + '" target="_blank" rel="noopener noreferrer">Loaded HTML</a>' : '') +
                     '</div>'
-                    : '';
-                const clickStatus = event.button_click_status || (link ? 'Pending' : '');
-                const clickError = event.button_click_error
-                    ? '<div class="mail-click-error">' + $('<div>').text(event.button_click_error).html() + '</div>'
                     : '';
 
                 $('#mailEventsBody').append(
                     '<tr data-event-id="' + event.id + '">' +
                     '<td>Done<br><span class="mail-date">' + $('<div>').text(event.received_at || '').html() + '</span></td>' +
                     '<td>' + openLink + '</td>' +
-                    '<td><span class="mail-click-status">' + $('<div>').text(clickStatus).html() + '</span>' + clickError + '</td>' +
                     '</tr>'
                 );
             });
@@ -264,11 +279,7 @@ if (!$account) {
                 $('#mailOperation').text(res.run.current_operation);
                 $('#mailMessage').text(res.run.error_message || '');
 
-                if (res.run.is_polling) {
-                    $('#mailStartBtn').prop('disabled', true).text('Email Polling Started');
-                } else {
-                    $('#mailStartBtn').prop('disabled', false).text('Start Mail Execution');
-                }
+                setMailPolling(res.run.is_polling);
             }, 'json');
         }
 
@@ -293,14 +304,28 @@ if (!$account) {
             $.post('ajax/mail_start.php', { account_id: accountId, email: email }, function (res) {
                 $('#mailMessage').text(res.message);
                 if (!res.success) {
-                    $('#mailStartBtn').prop('disabled', false).text('Start Mail Execution');
+                    setMailPolling(false);
                     return;
                 }
+                setMailPolling(true);
                 loadMailEvents();
                 updateMailStatus();
             }, 'json').fail(function () {
                 $('#mailMessage').text('Request failed. Please try again.');
-                $('#mailStartBtn').prop('disabled', false).text('Start Mail Execution');
+                setMailPolling(false);
+            });
+        });
+
+        $('#mailStopBtn').on('click', function () {
+            $('#mailStopBtn').prop('disabled', true).text('Stopping Mail');
+            $.post('ajax/mail_stop.php', { account_id: accountId }, function (res) {
+                $('#mailMessage').text(res.message);
+                $('#mailStopBtn').text('Stop Mail Execution');
+                setMailPolling(false);
+                updateMailStatus();
+            }, 'json').fail(function () {
+                $('#mailStopBtn').prop('disabled', false).text('Stop Mail Execution');
+                $('#mailMessage').text('Request failed. Please try again.');
             });
         });
 
@@ -318,6 +343,8 @@ if (!$account) {
         updateStatus();
         updateMailStatus();
         loadMailEvents();
+        setProcessRunning(false);
+        setMailPolling(false);
         setInterval(updateStatus, 10000);
         setInterval(function () {
             updateMailStatus();

@@ -21,7 +21,7 @@ if (!url) {
 }
 
 if (!chromePath) {
-  fail('Google Chrome was not found.');
+  fail(`Google Chrome or non-snap Chromium was not found. Install google-chrome-stable or set CHROME_PATH/CHROME_BINARY to a real Chrome binary. Checked: ${chromeCandidates().join(', ')}`);
 }
 
 fs.mkdirSync(debugDir, { recursive: true });
@@ -378,23 +378,24 @@ function safeName(value) {
 }
 
 function findChrome() {
-  const candidates = [
-    process.env.CHROME_PATH,
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/snap/bin/chromium',
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
+  for (const candidate of chromeCandidates()) {
     if (fs.existsSync(candidate)) {
       return candidate;
     }
   }
 
   return '';
+}
+
+function chromeCandidates() {
+  return [
+    process.env.CHROME_PATH,
+    process.env.CHROME_BINARY,
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+  ].filter(Boolean);
 }
 
 function fail(message) {

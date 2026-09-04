@@ -2,7 +2,6 @@
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/smtpdev_client.php';
 require_once __DIR__ . '/mail_processor.php';
-require_once __DIR__ . '/mail_button_clicker.php';
 
 function mail_get_run($pdo, $runId)
 {
@@ -143,8 +142,6 @@ function mail_poll_once($pdo, $runId)
     } else {
         mail_update_run($pdo, $runId, 'Running', 'Waiting for new email');
     }
-
-    mail_process_pending_button_clicks($pdo, (int) $run['account_id']);
 
     return $inserted;
 }
