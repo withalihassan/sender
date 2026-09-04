@@ -3,29 +3,35 @@
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const http = require('node:http');
+const net = require('node:net');
+const crypto = require('node:crypto');
 const os = require('node:os');
 const path = require('node:path');
 
 const url = process.argv[2] || '';
 const eventId = process.argv[3] || 'debug';
-const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const chromePath = findChrome();
 const debugDir = path.resolve(__dirname, '../data/mail-loaded-pages');
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'amazon-sms-chrome-'));
 const port = 9222 + Math.floor(Math.random() * 1000);
+let chrome = null;
 
 if (!url) {
   fail('Missing URL argument.');
 }
 
-if (!fs.existsSync(chromePath)) {
+if (!chromePath) {
   fail('Google Chrome was not found.');
 }
 
 fs.mkdirSync(debugDir, { recursive: true });
 
-const chrome = spawn(chromePath, [
+chrome = spawn(chromePath, [
   '--headless=new',
   '--disable-gpu',
+  '--disable-dev-shm-usage',
+  '--disable-setuid-sandbox',
+  '--no-sandbox',
   '--no-first-run',
   '--no-default-browser-check',
   `--remote-debugging-port=${port}`,
@@ -207,24 +213,50 @@ class CDP {
 
   connect() {
     return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.wsUrl);
-      this.ws.onopen = resolve;
-      this.ws.onerror = () => reject(new Error('Unable to connect to Chrome DevTools websocket.'));
-      this.ws.onmessage = event => {
-        const data = JSON.parse(event.data);
-        if (!data.id || !this.pending.has(data.id)) {
-          return;
+      const parsed = new URL(this.wsUrl);
+      const key = crypto.randomBytes(16).toString('base64');
+      let buffer = Buffer.alloc(0);
+      let handshakeDone = false;
+
+      this.socket = net.connect(Number(parsed.port), parsed.hostname, () => {
+        this.socket.write([
+          `GET ${parsed.pathname}${parsed.search} HTTP/1.1`,
+          `Host: ${parsed.host}`,
+          'Upgrade: websocket',
+          'Connection: Upgrade',
+          `Sec-WebSocket-Key: ${key}`,
+          'Sec-WebSocket-Version: 13',
+          '',
+          '',
+        ].join('\r\n'));
+      });
+
+      this.socket.on('data', chunk => {
+        buffer = Buffer.concat([buffer, chunk]);
+
+        if (!handshakeDone) {
+          const end = buffer.indexOf('\r\n\r\n');
+
+          if (end === -1) {
+            return;
+          }
+
+          const header = buffer.subarray(0, end).toString();
+
+          if (!header.includes(' 101 ')) {
+            reject(new Error('Chrome DevTools websocket handshake failed.'));
+            return;
+          }
+
+          handshakeDone = true;
+          buffer = buffer.subarray(end + 4);
+          resolve();
         }
 
-        const { resolve, reject } = this.pending.get(data.id);
-        this.pending.delete(data.id);
+        buffer = this.readFrames(buffer);
+      });
 
-        if (data.error) {
-          reject(new Error(data.error.message || JSON.stringify(data.error)));
-        } else {
-          resolve(data.result || {});
-        }
-      };
+      this.socket.on('error', () => reject(new Error('Unable to connect to Chrome DevTools websocket.')));
     });
   }
 
@@ -232,20 +264,109 @@ class CDP {
     return new Promise((resolve, reject) => {
       const id = ++this.id;
       this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify({ id, method, params }));
+      this.socket.write(encodeWsFrame(JSON.stringify({ id, method, params })));
     });
   }
 
   close() {
-    if (this.ws) {
-      this.ws.close();
+    if (this.socket) {
+      this.socket.end();
+    }
+  }
+
+  readFrames(buffer) {
+    while (buffer.length >= 2) {
+      const first = buffer[0];
+      const second = buffer[1];
+      let length = second & 0x7f;
+      let offset = 2;
+
+      if (length === 126) {
+        if (buffer.length < offset + 2) break;
+        length = buffer.readUInt16BE(offset);
+        offset += 2;
+      } else if (length === 127) {
+        if (buffer.length < offset + 8) break;
+        length = Number(buffer.readBigUInt64BE(offset));
+        offset += 8;
+      }
+
+      const masked = (second & 0x80) !== 0;
+      const maskOffset = masked ? 4 : 0;
+
+      if (buffer.length < offset + maskOffset + length) {
+        break;
+      }
+
+      let payload = buffer.subarray(offset + maskOffset, offset + maskOffset + length);
+
+      if (masked) {
+        const mask = buffer.subarray(offset, offset + 4);
+        payload = Buffer.from(payload.map((byte, index) => byte ^ mask[index % 4]));
+      }
+
+      if ((first & 0x0f) === 1) {
+        this.handleMessage(payload.toString());
+      }
+
+      buffer = buffer.subarray(offset + maskOffset + length);
+    }
+
+    return buffer;
+  }
+
+  handleMessage(message) {
+    const data = JSON.parse(message);
+
+    if (!data.id || !this.pending.has(data.id)) {
+      return;
+    }
+
+    const { resolve, reject } = this.pending.get(data.id);
+    this.pending.delete(data.id);
+
+    if (data.error) {
+      reject(new Error(data.error.message || JSON.stringify(data.error)));
+    } else {
+      resolve(data.result || {});
     }
   }
 }
 
+function encodeWsFrame(message) {
+  const payload = Buffer.from(message);
+  const mask = crypto.randomBytes(4);
+  let header;
+
+  if (payload.length < 126) {
+    header = Buffer.alloc(2);
+    header[1] = 0x80 | payload.length;
+  } else if (payload.length < 65536) {
+    header = Buffer.alloc(4);
+    header[1] = 0x80 | 126;
+    header.writeUInt16BE(payload.length, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[1] = 0x80 | 127;
+    header.writeBigUInt64BE(BigInt(payload.length), 2);
+  }
+
+  header[0] = 0x81;
+  const masked = Buffer.from(payload.map((byte, index) => byte ^ mask[index % 4]));
+
+  return Buffer.concat([header, mask, masked]);
+}
+
 function cleanup() {
-  chrome.kill('SIGTERM');
-  fs.rmSync(userDataDir, { recursive: true, force: true });
+  try {
+    if (chrome && !chrome.killed) {
+      chrome.kill('SIGTERM');
+    }
+  } catch (_) {}
+
+  try {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  } catch (_) {}
 }
 
 function sleep(ms) {
@@ -254,6 +375,26 @@ function sleep(ms) {
 
 function safeName(value) {
   return String(value).replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+function findChrome() {
+  const candidates = [
+    process.env.CHROME_PATH,
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/snap/bin/chromium',
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return '';
 }
 
 function fail(message) {
