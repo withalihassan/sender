@@ -9,34 +9,50 @@ function smtpdev_request($method, $path)
         throw new Exception('SMTPDev token is not configured.');
     }
 
-    $ch = curl_init(rtrim(smtpdev_base_url(), '/') . $path);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Accept: application/json',
-        'Content-Type: application/json',
-        'User-Agent: amazon-mail-worker/1.0',
-        'X-API-KEY: ' . $token,
-    ]);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    $url = rtrim(smtpdev_base_url(), '/') . $path;
+    $lastError = 'unknown error';
 
-    $body = curl_exec($ch);
-    $error = curl_error($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Accept: application/json',
+            'Content-Type: application/json',
+            'User-Agent: amazon-mail-worker/1.0',
+            'X-API-KEY: ' . $token,
+        ]);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
-    if ($error) {
-        throw new Exception('SMTPDev request failed.');
+        $body = curl_exec($ch);
+        $error = curl_error($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($error) {
+            $lastError = $error;
+            usleep(300000 * $attempt);
+            continue;
+        }
+
+        $json = json_decode($body, true);
+
+        if ($code >= 200 && $code < 300 && is_array($json)) {
+            return $json;
+        }
+
+        $lastError = 'HTTP ' . $code . ' invalid JSON response';
+
+        if ($code >= 500 || $code === 429 || $code === 0) {
+            usleep(300000 * $attempt);
+            continue;
+        }
+
+        break;
     }
 
-    $json = json_decode($body, true);
-
-    if ($code < 200 || $code >= 300 || !is_array($json)) {
-        throw new Exception('SMTPDev returned an invalid response.');
-    }
-
-    return $json;
+    throw new Exception('SMTPDev request failed: ' . $lastError);
 }
 
 function smtpdev_find_account($email)

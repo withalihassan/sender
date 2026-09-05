@@ -39,7 +39,8 @@ foreach ($missing->fetchAll(PDO::FETCH_ASSOC) as $event) {
 }
 
 $stmt = $pdo->prepare("
-    SELECT id, verification_url, DATE_FORMAT(created_at, '%d-%m %H:%i') AS received_at
+    SELECT id, email_address, sender, recipient, subject, verification_url, status, error_message,
+           DATE_FORMAT(created_at, '%d-%m %H:%i') AS received_at
     FROM mail_execution_events
     WHERE account_id = ?
       AND sender = 'recover-mfa-no-reply@verify.signin.aws'

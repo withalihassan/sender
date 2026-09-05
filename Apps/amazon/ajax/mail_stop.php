@@ -20,7 +20,7 @@ if ($accountId <= 0) {
 $stmt = $pdo->prepare("
     UPDATE mail_execution_runs
     SET stop_requested = 1, status = 'Stopped', current_operation = 'Stopped', updated_at = NOW()
-    WHERE account_id = ? AND status IN ('Running', 'Email Received', 'Verification Clicked', 'Webpage Opened', 'Button Clicked', 'Error')
+    WHERE account_id = ? AND status IN ('Running', 'Email Received', 'Error')
 ");
 $stmt->execute([$accountId]);
 

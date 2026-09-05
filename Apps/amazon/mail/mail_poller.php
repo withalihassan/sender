@@ -25,7 +25,7 @@ while (true) {
     try {
         mail_poll_once($pdo, $runId);
     } catch (Exception $e) {
-        mail_update_run($pdo, $runId, 'Error', 'Worker error', $e->getMessage());
+        mail_update_run($pdo, $runId, 'Running', 'Temporary mail polling issue - retrying', $e->getMessage());
     }
 
     sleep(1);

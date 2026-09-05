@@ -37,7 +37,7 @@ if ($isPolling) {
     try {
         mail_poll_once($pdo, (int) $run['id']);
     } catch (Exception $e) {
-        mail_update_run($pdo, (int) $run['id'], 'Error', 'Polling error', $e->getMessage());
+        mail_update_run($pdo, (int) $run['id'], 'Running', 'Temporary mail polling issue - retrying', $e->getMessage());
     }
 
     $stmt->execute([$accountId]);
