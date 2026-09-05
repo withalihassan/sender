@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/smtpdev_client.php';
 require_once __DIR__ . '/mail_processor.php';
+require_once __DIR__ . '/mail_browser_automation.php';
 
 function mail_get_run($pdo, $runId)
 {
@@ -22,7 +23,7 @@ function mail_update_run($pdo, $runId, $status, $operation, $error = null)
 
 function mail_event_for_message($pdo, $messageId)
 {
-    $stmt = $pdo->prepare("SELECT id, account_id, subject, email_text, verification_url FROM mail_execution_events WHERE message_id = ?");
+    $stmt = $pdo->prepare("SELECT id, account_id, subject, email_text, verification_url, browser_automation_status, button_clicked FROM mail_execution_events WHERE message_id = ?");
     $stmt->execute([$messageId]);
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
@@ -93,7 +94,9 @@ function mail_poll_once($pdo, $runId)
             $stmt = $pdo->prepare("
                 UPDATE mail_execution_events
                 SET run_id = ?, email_address = ?, sender = ?, recipient = ?, subject = ?,
-                    verification_url = ?, email_text = ?, email_json = ?, email_received = 1, status = 'Email Received',
+                    verification_url = ?,
+                    browser_automation_status = IF(button_clicked = 1, browser_automation_status, ?),
+                    email_text = ?, email_json = ?, email_received = 1, status = 'Email Received',
                     error_message = NULL, updated_at = NOW()
                 WHERE id = ?
             ");
@@ -104,6 +107,7 @@ function mail_poll_once($pdo, $runId)
                 $recipient,
                 $subject,
                 $verificationUrl,
+                $verificationUrl !== '' ? 'Pending' : null,
                 $text,
                 $json,
                 $existingEvent['id'],
@@ -111,8 +115,8 @@ function mail_poll_once($pdo, $runId)
         } else {
             $stmt = $pdo->prepare("
                 INSERT INTO mail_execution_events
-                (run_id, account_id, email_address, message_id, sender, recipient, subject, verification_url, email_text, email_json, email_received, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'Email Received', NOW(), NOW())
+                (run_id, account_id, email_address, message_id, sender, recipient, subject, verification_url, browser_automation_status, email_text, email_json, email_received, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'Email Received', NOW(), NOW())
             ");
             $stmt->execute([
                 $runId,
@@ -123,6 +127,7 @@ function mail_poll_once($pdo, $runId)
                 $recipient,
                 $subject,
                 $verificationUrl,
+                $verificationUrl !== '' ? 'Pending' : null,
                 $text,
                 $json,
             ]);
@@ -142,6 +147,8 @@ function mail_poll_once($pdo, $runId)
     } else {
         mail_update_run($pdo, $runId, 'Running', 'Waiting for new email');
     }
+
+    mail_process_pending_browser_automation($pdo, (int) $run['account_id']);
 
     return $inserted;
 }

@@ -8,3 +8,5 @@ sudo git pull origin main
 +59170666760
 
 psw: Mohsin@411
+
+baloch4869@support.techsolver.site

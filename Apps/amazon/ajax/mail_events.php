@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require '../includes/database.php';
 require '../mail/mail_processor.php';
+require '../mail/mail_browser_automation.php';
 
 ensure_amazon_tables($pdo);
 
@@ -22,7 +23,7 @@ $missing = $pdo->prepare("
       AND (verification_url IS NULL OR verification_url = '')
 ");
 $missing->execute([$accountId]);
-$update = $pdo->prepare("UPDATE mail_execution_events SET verification_url = ?, updated_at = NOW() WHERE id = ?");
+$update = $pdo->prepare("UPDATE mail_execution_events SET verification_url = ?, browser_automation_status = 'Pending', updated_at = NOW() WHERE id = ?");
 
 foreach ($missing->fetchAll(PDO::FETCH_ASSOC) as $event) {
     $message = json_decode($event['email_json'] ?: '', true);
@@ -38,8 +39,10 @@ foreach ($missing->fetchAll(PDO::FETCH_ASSOC) as $event) {
     }
 }
 
+mail_process_pending_browser_automation($pdo, $accountId);
+
 $stmt = $pdo->prepare("
-    SELECT id, email_address, sender, recipient, subject, verification_url, status, error_message,
+    SELECT id, verification_url, browser_automation_status, browser_automation_error, button_clicked,
            DATE_FORMAT(created_at, '%d-%m %H:%i') AS received_at
     FROM mail_execution_events
     WHERE account_id = ?

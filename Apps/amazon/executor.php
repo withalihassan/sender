@@ -74,7 +74,7 @@ if (!$account) {
         }
         .mail-stats div { display: flex; justify-content: space-between; gap: 14px; }
         .mail-table-wrap { overflow-x: auto; }
-        .mail-table { width: 100%; border-collapse: collapse; min-width: 860px; }
+        .mail-table { width: 100%; border-collapse: collapse; min-width: 640px; }
         .mail-table th, .mail-table td {
             padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: left;
             vertical-align: top;
@@ -154,11 +154,9 @@ if (!$account) {
                         <thead>
                             <tr>
                                 <th>Email Received</th>
-                                <th>Sender</th>
-                                <th>Recipient</th>
-                                <th>Subject</th>
-                                <th>Status</th>
-                                <th>Open Link</th>
+                                <th>Buttons</th>
+                                <th>Browser Automation</th>
+                                <th>Button Clicked</th>
                             </tr>
                         </thead>
                         <tbody id="mailEventsBody"></tbody>
@@ -235,16 +233,18 @@ if (!$account) {
 
             if (!events.length) {
                 $('#mailEventsBody').append(
-                    '<tr><td colspan="6">No received email yet.</td></tr>'
+                    '<tr><td colspan="4">No received email yet.</td></tr>'
                 );
                 return;
             }
 
             events.forEach(function (event) {
                 const link = event.verification_url || '';
-                const error = event.error_message
-                    ? '<br><span class="mail-date">' + $('<div>').text(event.error_message).html() + '</span>'
+                const automationStatus = event.browser_automation_status || (link ? 'Pending' : '');
+                const automationError = event.browser_automation_error
+                    ? '<br><span class="mail-date">' + $('<div>').text(event.browser_automation_error).html() + '</span>'
                     : '';
+                const buttonClicked = parseInt(event.button_clicked || 0, 10) === 1 ? 'Done' : 'Not Done';
                 const openLink = link
                     ? '<div class="mail-actions">' +
                         '<a class="mail-link" href="' + $('<div>').text(link).html() + '" target="_blank" rel="noopener noreferrer">Open Link</a>' +
@@ -255,11 +255,9 @@ if (!$account) {
                 $('#mailEventsBody').append(
                     '<tr data-event-id="' + event.id + '">' +
                     '<td>Done<br><span class="mail-date">' + $('<div>').text(event.received_at || '').html() + '</span></td>' +
-                    '<td>' + $('<div>').text(event.sender || '').html() + '</td>' +
-                    '<td>' + $('<div>').text(event.recipient || event.email_address || '').html() + '</td>' +
-                    '<td>' + $('<div>').text(event.subject || '').html() + '</td>' +
-                    '<td>' + $('<div>').text(event.status || '').html() + error + '</td>' +
                     '<td>' + openLink + '</td>' +
+                    '<td>' + $('<div>').text(automationStatus).html() + automationError + '</td>' +
+                    '<td>' + buttonClicked + '</td>' +
                     '</tr>'
                 );
             });
