@@ -9,4 +9,4 @@ sudo git pull origin main
 
 psw: Mohsin@411
 
-baloch4869@support.techsolver.site
+raj7427@support.techsolver.site
