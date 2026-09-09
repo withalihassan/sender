@@ -28,6 +28,30 @@ function get_aws_account_id($awsKey, $awsSecret)
     return $sts->getCallerIdentity()->get('Account');
 }
 
+function check_aws_account_status($account)
+{
+    try {
+        $verifiedAccountId = get_aws_account_id($account['aws_key'], $account['aws_secret']);
+
+        if ((string) $verifiedAccountId !== (string) $account['aws_account_id']) {
+            return [
+                'status' => 'Suspended',
+                'message' => 'The saved credentials belong to a different AWS account.',
+            ];
+        }
+
+        return [
+            'status' => 'Active',
+            'message' => 'AWS credentials were verified successfully.',
+        ];
+    } catch (Exception $e) {
+        return [
+            'status' => 'Suspended',
+            'message' => aws_error_message($e),
+        ];
+    }
+}
+
 function find_org_account_by_email($account, $email)
 {
     $client = new OrganizationsClient([

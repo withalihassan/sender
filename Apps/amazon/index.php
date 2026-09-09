@@ -4,7 +4,8 @@ require 'includes/database.php';
 
 ensure_amazon_tables($pdo);
 
-$stmt = $pdo->query("SELECT id, aws_account_id, aws_key, aws_secret, created_at FROM accounts ORDER BY id DESC");
+$stmt = $pdo->prepare("SELECT id, aws_account_id, aws_key, aws_secret, created_at FROM accounts WHERE by_user = ? ORDER BY id DESC");
+$stmt->execute([(int) $_SESSION['user_id']]);
 $accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
@@ -44,6 +45,7 @@ $accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
             cursor: pointer; text-decoration: none; display: inline-block; font-size: 14px;
         }
         .primary { background: #ff9900; color: #111827; }
+        .status { background: #2563eb; color: #fff; }
         .danger { background: #dc2626; color: #fff; }
         .dark { background: #232f3e; color: #fff; }
         .message {
@@ -90,6 +92,7 @@ $accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         <div class="card">
             <h2>Saved Accounts</h2>
+            <div id="accountStatusMessage" class="message"></div>
             <table id="accountsTable" class="display">
                 <thead>
                     <tr>
@@ -112,6 +115,7 @@ $accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <td>
                                 <div class="actions">
                                     <a class="btn dark" href="executor.php?id=<?php echo (int) $account['id']; ?>">Open</a>
+                                    <button class="status check-status-btn" data-id="<?php echo (int) $account['id']; ?>">Check Status</button>
                                     <button class="danger delete-btn" data-id="<?php echo (int) $account['id']; ?>">Delete</button>
                                 </div>
                             </td>
@@ -127,9 +131,14 @@ $accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script>
         const table = $('#accountsTable').DataTable();
         const message = $('#message');
+        const accountStatusMessage = $('#accountStatusMessage');
 
         function showMessage(text, type) {
             message.removeClass('success error').addClass(type).text(text).show();
+        }
+
+        function showAccountStatus(text, type) {
+            accountStatusMessage.removeClass('success error').addClass(type).text(text).show();
         }
 
         $('#addAccountForm').on('submit', function (e) {
@@ -143,6 +152,7 @@ $accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                 const actions = '<div class="actions">' +
                     '<a class="btn dark" href="executor.php?id=' + res.account.id + '">Open</a>' +
+                    '<button class="status check-status-btn" data-id="' + res.account.id + '">Check Status</button>' +
                     '<button class="danger delete-btn" data-id="' + res.account.id + '">Delete</button>' +
                     '</div>';
 
@@ -159,6 +169,24 @@ $accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 showMessage(res.message, 'success');
             }, 'json').fail(function () {
                 showMessage('Request failed. Please try again.', 'error');
+            });
+        });
+
+        $(document).on('click', '.check-status-btn', function () {
+            const button = $(this);
+            const id = button.data('id');
+            const originalText = button.text();
+
+            button.prop('disabled', true).text('Checking');
+            showAccountStatus('Checking AWS account status...', 'success');
+
+            $.post('ajax/check_account_status.php', { id: id }, function (res) {
+                const type = res.status === 'Active' ? 'success' : 'error';
+                showAccountStatus('AWS account is ' + res.status + '. ' + res.message, type);
+            }, 'json').fail(function () {
+                showAccountStatus('Unable to check AWS account status. Please try again.', 'error');
+            }).always(function () {
+                button.prop('disabled', false).text(originalText);
             });
         });
 

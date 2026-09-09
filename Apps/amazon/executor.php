@@ -5,8 +5,8 @@ require 'includes/database.php';
 ensure_amazon_tables($pdo);
 
 $id = (int) ($_GET['id'] ?? 0);
-$stmt = $pdo->prepare("SELECT id, aws_account_id, aws_key FROM accounts WHERE id = ?");
-$stmt->execute([$id]);
+$stmt = $pdo->prepare("SELECT id, aws_account_id, aws_key FROM accounts WHERE id = ? AND by_user = ?");
+$stmt->execute([$id, (int) $_SESSION['user_id']]);
 $account = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$account) {

@@ -17,8 +17,12 @@ if ($id <= 0) {
     json_response(['success' => false, 'message' => 'Invalid account ID.']);
 }
 
-$stmt = $pdo->prepare("DELETE FROM accounts WHERE id = ?");
-$stmt->execute([$id]);
+$stmt = $pdo->prepare("DELETE FROM accounts WHERE id = ? AND by_user = ?");
+$stmt->execute([$id, (int) $_SESSION['user_id']]);
+
+if ($stmt->rowCount() === 0) {
+    json_response(['success' => false, 'message' => 'Account was not found.']);
+}
 
 json_response(['success' => true, 'message' => 'Account deleted successfully.']);
 ?>

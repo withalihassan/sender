@@ -6,12 +6,15 @@ function ensure_amazon_tables($pdo)
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS accounts (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            by_user INT DEFAULT NULL,
             aws_account_id VARCHAR(20) NOT NULL UNIQUE,
             aws_key VARCHAR(255) NOT NULL,
             aws_secret TEXT NOT NULL,
             created_at DATETIME NOT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+
+    ensure_column($pdo, 'accounts', 'by_user', "INT DEFAULT NULL");
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS number_update_jobs (

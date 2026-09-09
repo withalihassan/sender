@@ -14,6 +14,7 @@ ensure_amazon_tables($pdo);
 
 $awsKey = trim($_POST['aws_key'] ?? '');
 $awsSecret = trim($_POST['aws_secret'] ?? '');
+$userId = (int) $_SESSION['user_id'];
 
 if ($awsKey === '' || $awsSecret === '') {
     json_response(['success' => false, 'message' => 'AWS Access Key and Secret Key are required.']);
@@ -31,10 +32,10 @@ try {
 
     $createdAt = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("
-        INSERT INTO accounts (aws_account_id, aws_key, aws_secret, created_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO accounts (by_user, aws_account_id, aws_key, aws_secret, created_at)
+        VALUES (?, ?, ?, ?, ?)
     ");
-    $stmt->execute([$awsAccountId, $awsKey, $awsSecret, $createdAt]);
+    $stmt->execute([$userId, $awsAccountId, $awsKey, $awsSecret, $createdAt]);
 
     json_response([
         'success' => true,
