@@ -51,16 +51,11 @@
 // Master username = admin 
 // Db EndPoint = database-1.cjiuwqmaw256.ap-south-1.rds.amazonaws.com
 
-if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] === '54.151.244.24') {
-    // When accessed via http://13.220.207.140, use 'localhost' for the DB connection.
-    $host = 'localhost';
-} else {
-    // Otherwise, use the remote IP address.
-    $host = '54.151.244.24';
-}
+
+$host = 'database-1.cj8e4u0u2aoh.ap-south-1.rds.amazonaws.com';
 $dbname   = 'sp_sender';
 $username = 'admin';
-$password = '3CFz8no5NSxCXiDOMz8g';
+$password = 'iRPIhAfKKsAIedz3UiRw';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);

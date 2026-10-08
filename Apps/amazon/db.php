@@ -1,12 +1,12 @@
 <?php
 // db.php
 
-$host = '54.151.244.24';
+$host = 'database-1.cj8e4u0u2aoh.ap-south-1.rds.amazonaws.com';
 $username = 'admin';
 
 
 $dbname   = 'manage_amazon';
-$password = '3CFz8no5NSxCXiDOMz8g';
+$password = 'iRPIhAfKKsAIedz3UiRw';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
