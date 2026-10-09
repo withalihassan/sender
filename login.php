@@ -48,16 +48,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <title>Login | Sender Console</title>
   <style>
     :root {
-      --bg: #08111f;
-      --panel: rgba(255, 255, 255, 0.09);
-      --panel-strong: rgba(255, 255, 255, 0.14);
       --text: #f7fbff;
       --muted: #9fb1c7;
       --line: rgba(255, 255, 255, 0.16);
       --accent: #3ee6b5;
       --accent-2: #7c8cff;
-      --danger: #ff6f8e;
-      --shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+      --shadow: 0 22px 60px rgba(0, 0, 0, 0.32);
     }
 
     * {
@@ -74,33 +70,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background:
-        radial-gradient(circle at 16% 18%, rgba(62, 230, 181, 0.22), transparent 26%),
-        radial-gradient(circle at 84% 14%, rgba(124, 140, 255, 0.24), transparent 28%),
+        radial-gradient(circle at 50% 15%, rgba(62, 230, 181, 0.16), transparent 28%),
+        radial-gradient(circle at 85% 85%, rgba(124, 140, 255, 0.14), transparent 26%),
         linear-gradient(135deg, #08111f 0%, #101a2b 48%, #121422 100%);
       overflow-x: hidden;
     }
 
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image:
-        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-      background-size: 46px 46px;
-      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 82%);
-    }
-
     .login-shell {
-      width: min(1180px, calc(100% - 40px));
+      width: min(500px, calc(100% - 32px));
       min-height: 100vh;
       margin: 0 auto;
-      display: grid;
-      grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.1fr);
+      display: flex;
       align-items: center;
-      gap: 42px;
-      padding: 48px 0;
+      justify-content: center;
+      padding: 32px 0;
       position: relative;
       z-index: 1;
     }
@@ -134,7 +117,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     .login-card {
       width: 100%;
-      max-width: 470px;
       padding: 34px;
       border: 1px solid var(--line);
       border-radius: 28px;
@@ -338,221 +320,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       line-height: 1.35;
     }
 
-    .showcase {
-      min-height: 650px;
-      position: relative;
-      display: grid;
-      align-content: center;
-      padding: 54px;
-      border: 1px solid var(--line);
-      border-radius: 34px;
-      overflow: hidden;
-      background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.035)),
-        linear-gradient(135deg, rgba(62, 230, 181, 0.08), rgba(124, 140, 255, 0.1));
-      box-shadow: var(--shadow);
-    }
-
-    .showcase::before,
-    .showcase::after {
-      content: "";
-      position: absolute;
-      border-radius: 999px;
-      filter: blur(2px);
-      opacity: 0.88;
-    }
-
-    .showcase::before {
-      width: 280px;
-      height: 280px;
-      right: -90px;
-      top: -70px;
-      background: radial-gradient(circle, rgba(62, 230, 181, 0.34), transparent 68%);
-      animation: drift 10s ease-in-out infinite alternate;
-    }
-
-    .showcase::after {
-      width: 320px;
-      height: 320px;
-      left: -120px;
-      bottom: -130px;
-      background: radial-gradient(circle, rgba(124, 140, 255, 0.28), transparent 68%);
-      animation: drift 12s ease-in-out infinite alternate-reverse;
-    }
-
-    .showcase-inner {
-      position: relative;
-      z-index: 1;
-    }
-
-    .dashboard-preview {
-      display: grid;
-      gap: 14px;
-      margin: 34px 0;
-    }
-
-    .preview-bar,
-    .metric-grid,
-    .timeline {
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(5, 13, 25, 0.42);
-      backdrop-filter: blur(14px);
-    }
-
-    .preview-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      min-height: 76px;
-      padding: 16px;
-      border-radius: 20px;
-    }
-
-    .status-dot {
-      width: 11px;
-      height: 11px;
-      display: inline-block;
-      margin-right: 8px;
-      border-radius: 99px;
-      background: var(--accent);
-      box-shadow: 0 0 20px rgba(62, 230, 181, 0.65);
-    }
-
-    .preview-label {
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 750;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-    }
-
-    .preview-value {
-      margin-top: 5px;
-      font-size: 1.12rem;
-      font-weight: 850;
-    }
-
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      border-radius: 20px;
-      overflow: hidden;
-    }
-
-    .metric {
-      min-height: 102px;
-      padding: 18px;
-      background: rgba(255, 255, 255, 0.035);
-    }
-
-    .metric span {
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 750;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
-
-    .metric strong {
-      display: block;
-      margin-top: 12px;
-      font-size: clamp(1.4rem, 3vw, 2rem);
-    }
-
-    .timeline {
-      padding: 18px;
-      border-radius: 20px;
-    }
-
-    .timeline-row {
-      display: grid;
-      grid-template-columns: 94px 1fr auto;
-      gap: 12px;
-      align-items: center;
-      min-height: 38px;
-      color: #dce8f7;
-      font-size: 0.92rem;
-    }
-
-    .timeline-row + .timeline-row {
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      margin-top: 10px;
-      padding-top: 10px;
-    }
-
-    .timeline-time,
-    .timeline-count {
-      color: var(--muted);
-      font-size: 0.82rem;
-      font-weight: 750;
-    }
-
-    .spotlight {
-      position: relative;
-      z-index: 1;
-      padding: 20px;
-      border: 1px solid rgba(62, 230, 181, 0.24);
-      border-radius: 22px;
-      background: rgba(62, 230, 181, 0.08);
-    }
-
-    .spotlight-title {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      margin: 0 0 10px;
-      color: #befce9;
-      font-size: 0.82rem;
-      font-weight: 850;
-      letter-spacing: 0.11em;
-      text-transform: uppercase;
-    }
-
-    .spotlight-title svg {
-      width: 18px;
-      height: 18px;
-    }
-
-    .spotlight-text {
-      margin: 0;
-      color: #e9fff8;
-      line-height: 1.65;
-    }
-
-    @keyframes drift {
-      from {
-        transform: translate3d(0, 0, 0) scale(1);
-      }
-      to {
-        transform: translate3d(24px, 18px, 0) scale(1.05);
-      }
-    }
-
-    @media (max-width: 980px) {
-      .login-shell {
-        grid-template-columns: 1fr;
-        gap: 24px;
-      }
-
-      .login-card {
-        max-width: none;
-      }
-
-      .showcase {
-        min-height: auto;
-        padding: 34px;
-      }
-    }
-
     @media (max-width: 640px) {
       .login-shell {
-        width: min(100% - 24px, 1180px);
+        width: min(100% - 24px, 500px);
         padding: 24px 0;
       }
 
-      .login-card,
-      .showcase {
+      .login-card {
         padding: 24px;
         border-radius: 24px;
       }
@@ -561,14 +335,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         margin-bottom: 22px;
       }
 
-      .trust-row,
-      .metric-grid {
+      .trust-row {
         grid-template-columns: 1fr;
-      }
-
-      .timeline-row {
-        grid-template-columns: 1fr;
-        gap: 4px;
       }
     }
 
@@ -661,88 +429,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       </div>
     </section>
 
-    <section class="showcase" aria-label="Sender Console overview">
-      <div class="showcase-inner">
-        <p class="eyebrow">Operations snapshot</p>
-        <h1>Run the day with a cleaner command center.</h1>
-        <p class="intro">A polished entry point for the tools your team already uses: accounts, regions, numbers, apps, and provider workflows.</p>
-
-        <div class="dashboard-preview" aria-hidden="true">
-          <div class="preview-bar">
-            <div>
-              <div class="preview-label"><span class="status-dot"></span>System ready</div>
-              <div class="preview-value">Daily console prepared</div>
-            </div>
-            <div class="preview-label">Today</div>
-          </div>
-
-          <div class="metric-grid">
-            <div class="metric">
-              <span>Queue</span>
-              <strong>Live</strong>
-            </div>
-            <div class="metric">
-              <span>Regions</span>
-              <strong>Synced</strong>
-            </div>
-            <div class="metric">
-              <span>Access</span>
-              <strong>Secure</strong>
-            </div>
-          </div>
-
-          <div class="timeline">
-            <div class="timeline-row">
-              <span class="timeline-time">08:15</span>
-              <span>Review available account inventory</span>
-              <span class="timeline-count">Ready</span>
-            </div>
-            <div class="timeline-row">
-              <span class="timeline-time">10:40</span>
-              <span>Check regional routing before bulk sends</span>
-              <span class="timeline-count">Tip</span>
-            </div>
-            <div class="timeline-row">
-              <span class="timeline-time">14:05</span>
-              <span>Keep provider and consumer sessions separated</span>
-              <span class="timeline-count">Good</span>
-            </div>
-          </div>
-        </div>
-
-        <aside class="spotlight" aria-labelledby="spotlight-title">
-          <p class="spotlight-title" id="spotlight-title">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 2v3m0 14v3M4.9 4.9 7 7m10 10 2.1 2.1M2 12h3m14 0h3M4.9 19.1 7 17m10-10 2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            Today's Spotlight
-          </p>
-          <p class="spotlight-text" id="spotlightText">Loading today's operations tip...</p>
-        </aside>
-      </div>
-    </section>
   </main>
 
   <script>
     (function () {
-      var spotlightItems = [
-        "Before starting a bulk send, scan region status so your routing decisions match today's available capacity.",
-        "Keep account notes current after every claim or rejection. Tomorrow's cleanup gets much easier.",
-        "Open your number sets before a send run and remove anything stale before it touches the queue.",
-        "Use the apps area as your launch pad when a task needs more than the main dashboard.",
-        "A quick quarantine review at the start of the day can prevent repeated account issues later.",
-        "Separate provider and consumer work in different browser tabs to avoid mixing sessions.",
-        "Check recent logs after a workflow finishes, while the details are still fresh."
-      ];
-
-      var spotlightText = document.getElementById("spotlightText");
-      if (spotlightText) {
-        var today = new Date();
-        var start = new Date(today.getFullYear(), 0, 0);
-        var dayOfYear = Math.floor((today - start) / 86400000);
-        spotlightText.textContent = spotlightItems[dayOfYear % spotlightItems.length];
-      }
-
       var toggle = document.querySelector(".toggle-password");
       var password = document.getElementById("password");
       if (toggle && password) {
