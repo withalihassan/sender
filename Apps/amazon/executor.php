@@ -4,6 +4,8 @@ require 'includes/database.php';
 
 ensure_amazon_tables($pdo);
 
+$numberUpdateDelaySeconds = 10;
+
 $id = (int) ($_GET['id'] ?? 0);
 $stmt = $pdo->prepare("SELECT id, aws_account_id, aws_key FROM accounts WHERE id = ? AND by_user = ?");
 $stmt->execute([$id, (int) $_SESSION['user_id']]);
@@ -113,6 +115,7 @@ if (!$account) {
                 <h1>Number Updation</h1>
                 <form id="processForm">
                     <input type="hidden" name="account_id" value="<?php echo (int) $account['id']; ?>">
+                    <input type="hidden" name="delay_seconds" value="<?php echo (int) $numberUpdateDelaySeconds; ?>">
 
                     <label>Email</label>
                     <input type="email" name="email" id="emailInput" required>

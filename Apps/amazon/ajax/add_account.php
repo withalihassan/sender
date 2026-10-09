@@ -26,9 +26,9 @@ try {
     $check = $pdo->prepare("SELECT id FROM accounts WHERE aws_account_id = ?");
     $check->execute([$awsAccountId]);
 
-    if ($check->fetch()) {
-        json_response(['success' => false, 'message' => 'This AWS Account ID is already saved.']);
-    }
+    // if ($check->fetch()) {
+    //     json_response(['success' => false, 'message' => 'This AWS Account ID is already saved.']);
+    // }
 
     $createdAt = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("

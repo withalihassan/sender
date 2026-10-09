@@ -15,6 +15,7 @@ ensure_amazon_tables($pdo);
 $accountId = (int) ($_POST['account_id'] ?? 0);
 $email = trim($_POST['email'] ?? '');
 $numbersText = trim($_POST['numbers'] ?? '');
+$delaySeconds = max(1, (int) ($_POST['delay_seconds'] ?? 300));
 
 if ($accountId <= 0 || $email === '' || $numbersText === '') {
     json_response(['success' => false, 'message' => 'Email and phone numbers are required.']);
@@ -50,8 +51,8 @@ try {
 
     $stmt = $pdo->prepare("
         INSERT INTO number_update_jobs
-        (account_id, email, target_aws_account_id, numbers, total_numbers, status, message, next_run_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'Running', 'Process started.', NOW(), NOW(), NOW())
+        (account_id, email, target_aws_account_id, numbers, total_numbers, delay_seconds, status, message, next_run_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'Running', 'Process started.', NOW(), NOW(), NOW())
     ");
     $stmt->execute([
         $accountId,
@@ -59,6 +60,7 @@ try {
         $orgAccount['Id'],
         json_encode($numbers),
         count($numbers),
+        $delaySeconds,
     ]);
 
     json_response(['success' => true, 'message' => 'Process started.']);

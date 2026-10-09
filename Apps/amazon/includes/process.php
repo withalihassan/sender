@@ -44,12 +44,18 @@ function advance_job_if_ready($pdo, $job, $account)
     }
 
     $numbers = json_decode($job['numbers'], true) ?: [];
+    $totalNumbers = count($numbers);
     $index = (int) $job['current_index'];
+    $delaySeconds = max(1, (int) ($job['delay_seconds'] ?? 300));
 
-    if (!isset($numbers[$index])) {
-        $stmt = $pdo->prepare("UPDATE number_update_jobs SET status = 'Completed', updated_at = NOW() WHERE id = ?");
+    if ($totalNumbers === 0) {
+        $stmt = $pdo->prepare("UPDATE number_update_jobs SET status = 'Error', message = 'No phone numbers found.', updated_at = NOW() WHERE id = ?");
         $stmt->execute([$job['id']]);
         return latest_job($pdo, $job['account_id']);
+    }
+
+    if (!isset($numbers[$index])) {
+        $index = 0;
     }
 
     $phone = $numbers[$index];
@@ -57,17 +63,15 @@ function advance_job_if_ready($pdo, $job, $account)
     try {
         update_account_phone($account, $job['target_aws_account_id'], $phone);
 
-        $nextIndex = $index + 1;
-        $done = $nextIndex >= count($numbers);
-        $status = $done ? 'Completed' : 'Running';
-        $nextRunAt = $done ? null : date('Y-m-d H:i:s', time() + 300);
+        $nextIndex = ($index + 1) % $totalNumbers;
+        $nextRunAt = date('Y-m-d H:i:s', time() + $delaySeconds);
 
         $stmt = $pdo->prepare("
             UPDATE number_update_jobs
             SET current_index = ?, current_phone = ?, status = ?, message = ?, next_run_at = ?, updated_at = NOW()
             WHERE id = ?
         ");
-        $stmt->execute([$nextIndex, $phone, $status, 'Phone updated successfully.', $nextRunAt, $job['id']]);
+        $stmt->execute([$nextIndex, $phone, 'Running', 'Phone updated successfully.', $nextRunAt, $job['id']]);
     } catch (Exception $e) {
         $stmt = $pdo->prepare("
             UPDATE number_update_jobs

@@ -25,6 +25,7 @@ function ensure_amazon_tables($pdo)
             numbers MEDIUMTEXT NOT NULL,
             current_index INT NOT NULL DEFAULT 0,
             total_numbers INT NOT NULL DEFAULT 0,
+            delay_seconds INT NOT NULL DEFAULT 300,
             current_phone VARCHAR(50) DEFAULT NULL,
             status VARCHAR(20) NOT NULL DEFAULT 'Idle',
             message TEXT DEFAULT NULL,
@@ -35,6 +36,8 @@ function ensure_amazon_tables($pdo)
             INDEX account_status_idx (account_id, status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+
+    ensure_column($pdo, 'number_update_jobs', 'delay_seconds', "INT NOT NULL DEFAULT 300");
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS mail_execution_runs (
