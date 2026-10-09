@@ -13,3 +13,4 @@ LOG="/var/www/sender/update.log"
   echo "Updated successfully"
 } >> "$LOG" 2>&1
 
+# sudo nano /usr/local/bin/sender-update.sh
