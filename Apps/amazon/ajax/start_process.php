@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require '../includes/database.php';
-require '../includes/aws.php';
+require '../includes/process.php';
 
 ensure_amazon_tables($pdo);
 
@@ -52,7 +52,7 @@ try {
     $stmt = $pdo->prepare("
         INSERT INTO number_update_jobs
         (account_id, email, target_aws_account_id, numbers, total_numbers, delay_seconds, status, message, next_run_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'Running', 'Process started.', NOW(), NOW(), NOW())
+        VALUES (?, ?, ?, ?, ?, ?, 'Running', 'Process started.', NULL, NOW(), NOW())
     ");
     $stmt->execute([
         $accountId,
@@ -63,7 +63,15 @@ try {
         $delaySeconds,
     ]);
 
-    json_response(['success' => true, 'message' => 'Process started.']);
+    $job = latest_job($pdo, $accountId);
+    $job = advance_job_if_ready($pdo, $job, $account);
+    $status = public_job_status($job);
+
+    json_response([
+        'success' => $status['status'] === 'Running',
+        'message' => $status['message'] ?: 'Process started.',
+        'job' => $status,
+    ]);
 } catch (Exception $e) {
     json_response(['success' => false, 'message' => 'AWS error: ' . aws_error_message($e)]);
 }

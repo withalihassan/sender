@@ -185,6 +185,14 @@ if (!$account) {
             $('#mailStopBtn').prop('disabled', !isPolling);
         }
 
+        function renderProcessStatus(job) {
+            $('#status').text(job.status);
+            $('#currentPhone').text(job.current_phone);
+            $('#progress').text(job.progress);
+            message.text(job.message || '');
+            setProcessRunning(job.status === 'Running');
+        }
+
         function updateStatus() {
             $.post('ajax/process_status.php', { account_id: accountId }, function (res) {
                 if (!res.success) {
@@ -192,11 +200,7 @@ if (!$account) {
                     return;
                 }
 
-                $('#status').text(res.job.status);
-                $('#currentPhone').text(res.job.current_phone);
-                $('#progress').text(res.job.progress);
-                message.text(res.job.message || '');
-                setProcessRunning(res.job.status === 'Running');
+                renderProcessStatus(res.job);
             }, 'json');
         }
 
@@ -206,12 +210,16 @@ if (!$account) {
             message.text('Starting process...');
 
             $.post('ajax/start_process.php', $(this).serialize(), function (res) {
-                message.text(res.message);
+                if (res.job) {
+                    renderProcessStatus(res.job);
+                } else {
+                    message.text(res.message);
+                }
+
                 if (!res.success) {
                     setProcessRunning(false);
                     return;
                 }
-                updateStatus();
             }, 'json').fail(function () {
                 message.text('Request failed. Please try again.');
                 setProcessRunning(false);
