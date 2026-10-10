@@ -51,8 +51,8 @@ try {
 
     $stmt = $pdo->prepare("
         INSERT INTO number_update_jobs
-        (account_id, email, target_aws_account_id, numbers, total_numbers, delay_seconds, status, message, next_run_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'Running', 'Process started.', NULL, NOW(), NOW())
+        (account_id, email, target_aws_account_id, numbers, total_numbers, delay_seconds, status, message, error_message, next_run_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'Running', 'Process started.', NULL, NULL, NOW(), NOW())
     ");
     $stmt->execute([
         $accountId,

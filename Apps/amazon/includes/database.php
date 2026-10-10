@@ -29,6 +29,7 @@ function ensure_amazon_tables($pdo)
             current_phone VARCHAR(50) DEFAULT NULL,
             status VARCHAR(20) NOT NULL DEFAULT 'Idle',
             message TEXT DEFAULT NULL,
+            error_message TEXT DEFAULT NULL,
             stop_requested TINYINT(1) NOT NULL DEFAULT 0,
             next_run_at DATETIME DEFAULT NULL,
             created_at DATETIME NOT NULL,
@@ -38,6 +39,7 @@ function ensure_amazon_tables($pdo)
     ");
 
     ensure_column($pdo, 'number_update_jobs', 'delay_seconds', "INT NOT NULL DEFAULT 300");
+    ensure_column($pdo, 'number_update_jobs', 'error_message', "TEXT DEFAULT NULL");
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS mail_execution_runs (

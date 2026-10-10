@@ -135,6 +135,7 @@ if (!$account) {
                     <div class="status-row"><strong>Progress</strong><span id="progress">0 / 0</span></div>
                 </div>
                 <div id="message" class="message"></div>
+                <div id="errorMessage" class="message"></div>
             </section>
 
             <section class="card mail-card">
@@ -174,6 +175,8 @@ if (!$account) {
     <script>
         const accountId = <?php echo (int) $account['id']; ?>;
         const message = $('#message');
+        const errorMessage = $('#errorMessage');
+        let processStatusLoading = false;
 
         function setProcessRunning(isRunning) {
             $('#processStartBtn').prop('disabled', isRunning).text(isRunning ? 'Process Running' : 'Start Process');
@@ -190,30 +193,43 @@ if (!$account) {
             $('#currentPhone').text(job.current_phone);
             $('#progress').text(job.progress);
             message.text(job.message || '');
+            if (job.error_message) {
+                errorMessage.text('Error: ' + job.error_message);
+            }
             setProcessRunning(job.status === 'Running');
         }
 
         function updateStatus() {
+            if (processStatusLoading) {
+                return;
+            }
+
+            processStatusLoading = true;
             $.post('ajax/process_status.php', { account_id: accountId }, function (res) {
                 if (!res.success) {
-                    message.text(res.message || 'Unable to load status.');
+                    errorMessage.text(res.message || 'Unable to load status.');
                     return;
                 }
 
                 renderProcessStatus(res.job);
-            }, 'json');
+            }, 'json').fail(function () {
+                errorMessage.text('Unable to refresh process status.');
+            }).always(function () {
+                processStatusLoading = false;
+            });
         }
 
         $('#processForm').on('submit', function (e) {
             e.preventDefault();
             $('#processStartBtn').prop('disabled', true).text('Starting Process');
             message.text('Starting process...');
+            errorMessage.text('');
 
             $.post('ajax/start_process.php', $(this).serialize(), function (res) {
                 if (res.job) {
                     renderProcessStatus(res.job);
                 } else {
-                    message.text(res.message);
+                    errorMessage.text(res.message);
                 }
 
                 if (!res.success) {
@@ -230,6 +246,7 @@ if (!$account) {
             $('#stopBtn').prop('disabled', true).text('Stopping Process');
             $.post('ajax/stop_process.php', { account_id: accountId }, function (res) {
                 message.text(res.message);
+                errorMessage.text('');
                 $('#stopBtn').text('Stop Process');
                 setProcessRunning(false);
                 updateStatus();
@@ -365,7 +382,7 @@ if (!$account) {
         updateStatus();
         updateMailStatus();
         loadMailEvents();
-        setInterval(updateStatus, 10000);
+        setInterval(updateStatus, 2000);
         setInterval(function () {
             updateMailStatus();
             loadMailEvents();

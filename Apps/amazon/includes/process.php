@@ -23,6 +23,7 @@ function public_job_status($job)
             'current_phone' => '',
             'progress' => '0 / 0',
             'message' => '',
+            'error_message' => '',
         ];
     }
 
@@ -31,6 +32,7 @@ function public_job_status($job)
         'current_phone' => $job['current_phone'] ?: '',
         'progress' => (int) $job['current_index'] . ' / ' . (int) $job['total_numbers'],
         'message' => $job['message'] ?: '',
+        'error_message' => $job['error_message'] ?? '',
     ];
 }
 
@@ -94,16 +96,15 @@ function advance_job_if_ready($pdo, $job, $account)
         $updateResult = try_update_account_phone($account, $job['target_aws_account_id'], $phone);
         $nextIndex = ($index + 1) % $totalNumbers;
         $nextRunAt = date('Y-m-d H:i:s', time() + $delaySeconds);
-        $message = $updateResult['success']
-            ? 'Phone update request sent.'
-            : 'AWS response ignored. Moving to next number. Last AWS message: ' . $updateResult['message'];
+        $message = 'Number processed. Waiting before next number.';
+        $errorMessage = $updateResult['success'] ? null : $updateResult['message'];
 
         $stmt = $pdo->prepare("
             UPDATE number_update_jobs
-            SET current_index = ?, current_phone = ?, status = ?, message = ?, next_run_at = ?, updated_at = NOW()
+            SET current_index = ?, current_phone = ?, status = ?, message = ?, error_message = ?, next_run_at = ?, updated_at = NOW()
             WHERE id = ?
         ");
-        $stmt->execute([$nextIndex, $phone, 'Running', $message, $nextRunAt, $job['id']]);
+        $stmt->execute([$nextIndex, $phone, 'Running', $message, $errorMessage, $nextRunAt, $job['id']]);
 
         return latest_job($pdo, $job['account_id']);
     } finally {
