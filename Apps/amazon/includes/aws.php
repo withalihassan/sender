@@ -99,6 +99,34 @@ function update_account_phone($account, $targetAccountId, $phone)
     ]);
 }
 
+function try_update_account_phone($account, $targetAccountId, $phone, $attempts = 3)
+{
+    $attempts = max(1, (int) $attempts);
+    $lastError = '';
+
+    for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+        try {
+            update_account_phone($account, $targetAccountId, $phone);
+
+            return [
+                'success' => true,
+                'message' => 'Phone update request sent.',
+            ];
+        } catch (Exception $e) {
+            $lastError = aws_error_message($e);
+
+            if ($attempt < $attempts) {
+                usleep(500000);
+            }
+        }
+    }
+
+    return [
+        'success' => false,
+        'message' => $lastError ?: 'AWS phone update failed.',
+    ];
+}
+
 function aws_error_message($e)
 {
     if ($e instanceof AwsException) {
