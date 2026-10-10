@@ -234,8 +234,8 @@ try {
                     <option value="c7a.2xlarge">c7a.2xlarge</option>
                     <option value="c7a.8xlarge">c7a.8xlarge</option>
                     <option value="c7i.xlarge">c7i.xlarge</option>
-                    <option value="c7i.2xlarge">c7i.2xlarge</option>
-                    <option value="c7i.8xlarge">c7i.8xlarge</option>
+                    <option value="m7i-flex.large">m7i-flex.large-FT</option>
+                    <option value="c7i-flex.large">c7i-flex.large-FT</option>
                 </select>
             </div>
             <div class="col-md-2">
