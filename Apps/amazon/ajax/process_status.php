@@ -18,16 +18,7 @@ if ($accountId <= 0) {
     json_response(['success' => false, 'message' => 'Invalid account ID.']);
 }
 
-$stmt = $pdo->prepare("SELECT * FROM accounts WHERE id = ?");
-$stmt->execute([$accountId]);
-$account = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$account) {
-    json_response(['success' => false, 'message' => 'AWS account not found.']);
-}
-
 $job = latest_job($pdo, $accountId);
-$job = advance_job_if_ready($pdo, $job, $account);
 
 json_response(['success' => true, 'job' => public_job_status($job)]);
 ?>

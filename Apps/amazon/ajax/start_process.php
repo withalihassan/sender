@@ -35,19 +35,19 @@ if (!$account) {
     json_response(['success' => false, 'message' => 'AWS account not found.']);
 }
 
-$running = $pdo->prepare("SELECT id FROM number_update_jobs WHERE account_id = ? AND status = 'Running' LIMIT 1");
-$running->execute([$accountId]);
-
-if ($running->fetch()) {
-    json_response(['success' => false, 'message' => 'A process is already running for this account.']);
-}
-
 try {
     $orgAccount = find_org_account_by_email($account, $email);
 
     if (!$orgAccount) {
         json_response(['success' => false, 'message' => 'No AWS Organization member account found for this email.']);
     }
+
+    $stmt = $pdo->prepare("
+        UPDATE number_update_jobs
+        SET stop_requested = 1, status = 'Stopped', message = 'Replaced by new process.', updated_at = NOW()
+        WHERE account_id = ? AND status = 'Running'
+    ");
+    $stmt->execute([$accountId]);
 
     $stmt = $pdo->prepare("
         INSERT INTO number_update_jobs
@@ -64,7 +64,6 @@ try {
     ]);
 
     $job = latest_job($pdo, $accountId);
-    $job = advance_job_if_ready($pdo, $job, $account);
     $status = public_job_status($job);
 
     json_response([

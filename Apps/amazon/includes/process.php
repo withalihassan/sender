@@ -33,6 +33,8 @@ function public_job_status($job)
         'progress' => (int) $job['current_index'] . ' / ' . (int) $job['total_numbers'],
         'message' => $job['message'] ?: '',
         'error_message' => $job['error_message'] ?? '',
+        'delay_seconds' => max(1, (int) ($job['delay_seconds'] ?? 300)),
+        'next_run_in_seconds' => empty($job['current_phone']) ? 0 : max(1, (int) ($job['delay_seconds'] ?? 300)),
     ];
 }
 
@@ -46,10 +48,6 @@ function advance_job_if_ready($pdo, $job, $account)
         $stmt = $pdo->prepare("UPDATE number_update_jobs SET status = 'Stopped', updated_at = NOW() WHERE id = ?");
         $stmt->execute([$job['id']]);
         return latest_job($pdo, $job['account_id']);
-    }
-
-    if ($job['next_run_at'] && strtotime($job['next_run_at']) > time()) {
-        return $job;
     }
 
     $lockName = 'number_update_job_' . (int) $job['id'];
@@ -71,10 +69,6 @@ function advance_job_if_ready($pdo, $job, $account)
             $stmt = $pdo->prepare("UPDATE number_update_jobs SET status = 'Stopped', updated_at = NOW() WHERE id = ?");
             $stmt->execute([$job['id']]);
             return latest_job($pdo, $job['account_id']);
-        }
-
-        if ($job['next_run_at'] && strtotime($job['next_run_at']) > time()) {
-            return $job;
         }
 
         $numbers = json_decode($job['numbers'], true) ?: [];

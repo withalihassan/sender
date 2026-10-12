@@ -177,6 +177,8 @@ if (!$account) {
         const message = $('#message');
         const errorMessage = $('#errorMessage');
         let processStatusLoading = false;
+        let numberUpdateLoading = false;
+        let numberUpdateTimer = null;
 
         function setProcessRunning(isRunning) {
             $('#processStartBtn').prop('disabled', isRunning).text(isRunning ? 'Process Running' : 'Start Process');
@@ -188,6 +190,25 @@ if (!$account) {
             $('#mailStopBtn').prop('disabled', !isPolling);
         }
 
+        function clearNumberUpdateTimer() {
+            if (numberUpdateTimer) {
+                clearTimeout(numberUpdateTimer);
+                numberUpdateTimer = null;
+            }
+        }
+
+        function scheduleNextNumberUpdate(job) {
+            clearNumberUpdateTimer();
+
+            if (!job || job.status !== 'Running') {
+                return;
+            }
+
+            const nextRunInSeconds = parseInt(job.next_run_in_seconds || 0, 10);
+            const delayMs = Math.max(0, nextRunInSeconds) * 1000;
+            numberUpdateTimer = setTimeout(runNextNumberUpdate, delayMs);
+        }
+
         function renderProcessStatus(job) {
             $('#status').text(job.status);
             $('#currentPhone').text(job.current_phone);
@@ -197,6 +218,7 @@ if (!$account) {
                 errorMessage.text('Error: ' + job.error_message);
             }
             setProcessRunning(job.status === 'Running');
+            scheduleNextNumberUpdate(job);
         }
 
         function updateStatus() {
@@ -216,6 +238,32 @@ if (!$account) {
                 errorMessage.text('Unable to refresh process status.');
             }).always(function () {
                 processStatusLoading = false;
+            });
+        }
+
+        function runNextNumberUpdate() {
+            if (numberUpdateLoading) {
+                return;
+            }
+
+            numberUpdateLoading = true;
+            $.post('ajax/run_next_number.php', { account_id: accountId }, function (res) {
+                if (!res.success) {
+                    errorMessage.text(res.message || 'Unable to update phone number.');
+                    setProcessRunning(false);
+                    clearNumberUpdateTimer();
+                    return;
+                }
+
+                renderProcessStatus(res.job);
+            }, 'json').fail(function () {
+                errorMessage.text('Unable to update phone number.');
+                scheduleNextNumberUpdate({
+                    status: 'Running',
+                    next_run_in_seconds: <?php echo (int) $numberUpdateDelaySeconds; ?>
+                });
+            }).always(function () {
+                numberUpdateLoading = false;
             });
         }
 
@@ -245,6 +293,7 @@ if (!$account) {
         $('#stopBtn').on('click', function () {
             $('#stopBtn').prop('disabled', true).text('Stopping Process');
             $.post('ajax/stop_process.php', { account_id: accountId }, function (res) {
+                clearNumberUpdateTimer();
                 message.text(res.message);
                 errorMessage.text('');
                 $('#stopBtn').text('Stop Process');
@@ -382,7 +431,6 @@ if (!$account) {
         updateStatus();
         updateMailStatus();
         loadMailEvents();
-        setInterval(updateStatus, 2000);
         setInterval(function () {
             updateMailStatus();
             loadMailEvents();
