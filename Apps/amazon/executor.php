@@ -116,68 +116,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Update AWS Phone Number</title>
 <style>
-/* * { box-sizing: border-box; }
-
-body {
-    margin: 0;
-    min-height: 100vh;
-    display: grid;
-    place-items: center;
-    padding: 20px;
-    font-family: Arial, sans-serif;
-    background: #f3f5f8;
-    color: #172033;
-}
-
-.card {
-    width: 100%;
-    max-width: 420px;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 26px;
-}
-
-h2 { margin: 0 0 22px; }
-
-label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: bold;
-}
-
-input {
-    width: 100%;
-    padding: 13px;
-    border: 1px solid #cbd5e1;
-    border-radius: 7px;
-    font-size: 16px;
-    margin-bottom: 14px;
-}
-
-button {
-    width: 100%;
-    padding: 13px;
-    border: 0;
-    border-radius: 7px;
-    background: #ff9900;
-    color: #111827;
-    font-weight: bold;
-    font-size: 15px;
-    cursor: pointer;
-}
-
-button:disabled {
-    opacity: .6;
-    cursor: not-allowed;
-}
-
-.message {
-    margin-top: 16px;
-    font-size: 14px;
-    overflow-wrap: anywhere;
-    color: <?= $success ? '#15803d' : '#b91c1c' ?>;
-} */
+body { font-family: Arial, sans-serif; margin: 20px; }
+.card { max-width: 400px; }
+label { display: block; margin-bottom: 6px; }
+input, button { box-sizing: border-box; width: 100%; padding: 10px; margin-bottom: 12px; }
+.message { color: <?= $success ? 'green' : 'red' ?>; }
 </style>
 </head>
 <body>
