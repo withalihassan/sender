@@ -1,13 +1,12 @@
 <?php
-require 'includes/auth.php';
-require 'includes/database.php';
-
-ensure_amazon_tables($pdo);
-
-$numberUpdateDelaySeconds = 10;
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/db.php';
 
 $id = (int) ($_GET['id'] ?? 0);
-$stmt = $pdo->prepare("SELECT id, aws_account_id, aws_key FROM accounts WHERE id = ? AND by_user = ?");
+
+$stmt = $pdo->prepare(
+    'SELECT aws_key, aws_secret FROM accounts WHERE id = ? AND by_user = ? LIMIT 1'
+);
 $stmt->execute([$id, (int) $_SESSION['user_id']]);
 $account = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -15,426 +14,186 @@ if (!$account) {
     header('Location: index.php');
     exit;
 }
+
+$message = '';
+$success = false;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $phone = trim($_POST['phone'] ?? '');
+
+    try {
+        // Release the PHP session lock before making network requests to AWS.
+        session_write_close();
+
+        if (!preg_match('/^\+[1-9]\d{1,14}$/', $phone)) {
+            throw new RuntimeException(
+                'Enter a valid international number, for example +923001234567.'
+            );
+        }
+
+        // Credentials are read from the existing database record.
+        $accessKey = $account['aws_key'] ?? '';
+        $secretKey = $account['aws_secret'] ?? '';
+
+        if (!$accessKey || !$secretKey) {
+            throw new RuntimeException(
+                'AWS access key or secret key is missing from the database record.'
+            );
+        }
+
+        // The repository keeps the AWS SDK at the project root: /aws.
+        $sdkAutoloader = __DIR__ . '/../../aws/aws-autoloader.php';
+
+        if (!is_file($sdkAutoloader)) {
+            throw new RuntimeException(
+                'AWS SDK autoloader not found at: ' . $sdkAutoloader
+            );
+        }
+
+        require_once $sdkAutoloader;
+
+        if (!class_exists('Aws\\Account\\AccountClient')) {
+            throw new RuntimeException(
+                'AWS SDK loaded, but Aws\\Account\\AccountClient is unavailable.'
+            );
+        }
+
+        $config = [
+            'version' => 'latest',
+            'region' => 'us-east-1',
+            'credentials' => [
+                'key'    => $accessKey,
+                'secret' => $secretKey,
+            ],
+        ];
+
+        $client = new \Aws\Account\AccountClient($config);
+
+        // Saved credentials belong to this account, so omit AccountId.
+        // This avoids an extra STS request and preserves standalone account support.
+        $result = $client->getContactInformation([]);
+        $contact = $result['ContactInformation'] ?? [];
+
+        foreach (
+            ['AddressLine1', 'City', 'CountryCode', 'FullName', 'PostalCode']
+            as $field
+        ) {
+            if (empty($contact[$field])) {
+                throw new RuntimeException(
+                    "AWS contact information is missing: $field"
+                );
+            }
+        }
+
+        // Change only the phone number.
+        $contact['PhoneNumber'] = $phone;
+
+        $client->putContactInformation(['ContactInformation' => $contact]);
+
+        $message = 'Phone number update submitted successfully.';
+        $success = true;
+
+    } catch (\Throwable $e) {
+        $message = $e instanceof \Aws\Exception\AwsException
+            ? ($e->getAwsErrorMessage() ?: 'AWS request failed. Check IAM permissions.')
+            : $e->getMessage();
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AWS Executor</title>
-    <style>
-        * { box-sizing: border-box; }
-        body { margin: 0; font-family: Arial, sans-serif; color: #1f2937; background: #eef2f7; }
-        .topbar {
-            background: #232f3e; color: #fff; padding: 18px 28px;
-            display: flex; justify-content: space-between; align-items: center; gap: 16px;
-        }
-        .brand { font-size: 22px; font-weight: 700; }
-        .brand span { color: #ff9900; }
-        .topbar a { color: #fff; text-decoration: none; margin-left: 14px; }
-        .wrap { max-width: 1200px; margin: 28px auto; padding: 0 18px; }
-        .account-strip {
-            background: #fff; border: 1px solid #d8dee8; border-radius: 8px;
-            padding: 16px 20px; margin-bottom: 22px; display: flex; gap: 24px; flex-wrap: wrap;
-        }
-        .grid { display: grid; grid-template-columns: 1fr 1.25fr; gap: 22px; align-items: start; }
-        .card {
-            background: #fff; border: 1px solid #d8dee8; border-radius: 8px;
-            padding: 22px; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
-        }
-        h1, h2 { margin: 0 0 18px; }
-        h1 { font-size: 24px; }
-        h2 { font-size: 20px; }
-        label { display: block; margin-bottom: 7px; font-weight: 700; font-size: 14px; }
-        input, textarea {
-            width: 100%; padding: 12px; border: 1px solid #c9d2df;
-            border-radius: 6px; font-size: 15px; margin-bottom: 16px;
-        }
-        textarea { min-height: 160px; resize: vertical; }
-        input:focus, textarea:focus {
-            outline: none; border-color: #ff9900; box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.18);
-        }
-        button {
-            border: 0; border-radius: 6px; padding: 12px 16px;
-            font-weight: 700; cursor: pointer; font-size: 14px;
-        }
-        button:disabled { cursor: not-allowed; opacity: 0.68; }
-        .primary { background: #ff9900; color: #111827; }
-        .danger { background: #dc2626; color: #fff; }
-        .muted { background: #64748b; color: #fff; }
-        .buttons { display: flex; gap: 10px; flex-wrap: wrap; }
-        .status-box {
-            margin-top: 18px; padding: 14px; border-radius: 8px;
-            background: #f8fafc; border: 1px solid #e2e8f0;
-        }
-        .status-row { display: flex; justify-content: space-between; gap: 14px; padding: 7px 0; border-bottom: 1px solid #e5e7eb; }
-        .status-row:last-child { border-bottom: 0; }
-        .mail-card { min-height: 360px; }
-        .mail-stats {
-            display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 18px;
-            padding: 14px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0;
-        }
-        .mail-stats div { display: flex; justify-content: space-between; gap: 14px; }
-        .mail-table-wrap { overflow-x: auto; }
-        .mail-table { width: 100%; border-collapse: collapse; min-width: 640px; }
-        .mail-table th, .mail-table td {
-            padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: left;
-            vertical-align: top;
-        }
-        .mail-table th { background: #f8fafc; font-size: 13px; }
-        .mail-date { color: #64748b; font-size: 12px; font-weight: 400; }
-        .mail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-        .mail-link { color: #111827; background: #ff9900; padding: 9px 12px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block; }
-        .mail-copy { color: #fff; background: #64748b; padding: 9px 12px; border-radius: 6px; font-weight: 700; }
-        .message { margin-top: 14px; font-weight: 700; color: #991b1b; }
-        @media (max-width: 820px) {
-            .topbar { flex-direction: column; align-items: flex-start; }
-            .grid { grid-template-columns: 1fr; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update AWS Phone Number</title>
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    background: #f3f5f8;
+    color: #172033;
+}
+
+.card {
+    width: 100%;
+    max-width: 420px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 26px;
+}
+
+h2 { margin: 0 0 22px; }
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+input {
+    width: 100%;
+    padding: 13px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    font-size: 16px;
+    margin-bottom: 14px;
+}
+
+button {
+    width: 100%;
+    padding: 13px;
+    border: 0;
+    border-radius: 7px;
+    background: #ff9900;
+    color: #111827;
+    font-weight: bold;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.message {
+    margin-top: 16px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+    color: <?= $success ? '#15803d' : '#b91c1c' ?>;
+}
+</style>
 </head>
 <body>
-    <div class="topbar">
-        <div class="brand">amazon<span>.</span> Executor</div>
-        <div>
-            <?php echo htmlspecialchars($_SESSION['username']); ?>
-            <a href="index.php">Dashboard</a>
-            <a href="logout.php">Logout</a>
+<div class="card">
+    <h2>Update Phone Number</h2>
+
+    <form method="post">
+        <label for="phone">New phone number</label>
+        <input
+            type="tel"
+            id="phone"
+            name="phone"
+            placeholder="+923001234567"
+            pattern="\+[1-9][0-9]{1,14}"
+            required
+        >
+
+        <button type="submit">Update Phone Number</button>
+    </form>
+
+    <?php if ($message !== ''): ?>
+        <div class="message">
+            <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
         </div>
-    </div>
-
-    <main class="wrap">
-        <div class="account-strip">
-            <div><strong>Database ID:</strong> <?php echo (int) $account['id']; ?></div>
-            <div><strong>AWS Account ID:</strong> <?php echo htmlspecialchars($account['aws_account_id']); ?></div>
-            <div><strong>Access Key:</strong> <?php echo htmlspecialchars(mask_value($account['aws_key'])); ?></div>
-        </div>
-
-        <div class="grid">
-            <section class="card">
-                <h1>Number Updation</h1>
-                <form id="processForm">
-                    <input type="hidden" name="account_id" value="<?php echo (int) $account['id']; ?>">
-                    <input type="hidden" name="delay_seconds" value="<?php echo (int) $numberUpdateDelaySeconds; ?>">
-
-                    <label>Email</label>
-                    <input type="email" name="email" id="emailInput" required>
-
-                    <label>Phone Numbers</label>
-                    <textarea name="numbers" required placeholder="+923116128008&#10;+923001234567&#10;+923451234567"></textarea>
-
-                    <div class="buttons">
-                        <button type="submit" class="primary" id="processStartBtn">Start Process</button>
-                        <button type="button" class="danger" id="stopBtn">Stop Process</button>
-                    </div>
-                </form>
-
-                <div class="status-box">
-                    <div class="status-row"><strong>Status</strong><span id="status">Idle</span></div>
-                    <div class="status-row"><strong>Current phone</strong><span id="currentPhone"></span></div>
-                    <div class="status-row"><strong>Progress</strong><span id="progress">0 / 0</span></div>
-                </div>
-                <div id="message" class="message"></div>
-                <div id="errorMessage" class="message"></div>
-            </section>
-
-            <section class="card mail-card">
-                <h2>Mail Execution</h2>
-                <div class="buttons">
-                    <button type="button" class="primary" id="mailStartBtn">Start Mail Execution</button>
-                    <button type="button" class="danger" id="mailStopBtn">Stop Mail Execution</button>
-                    <button type="button" class="muted" id="mailFlushBtn">Flush Data</button>
-                </div>
-
-                <div class="mail-stats">
-                    <div><strong>Status:</strong><span id="mailStatus">Idle</span></div>
-                    <div><strong>Emails Processed:</strong><span id="mailProcessed">0</span></div>
-                    <div><strong>Last Email:</strong><span id="mailLastEmail"></span></div>
-                    <div><strong>Current Operation:</strong><span id="mailOperation">Idle</span></div>
-                </div>
-
-                <div class="mail-table-wrap">
-                    <table class="mail-table">
-                        <thead>
-                            <tr>
-                                <th>Email Received</th>
-                                <th>Buttons</th>
-                                <th>Browser Automation</th>
-                                <th>Button Clicked</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mailEventsBody"></tbody>
-                    </table>
-                </div>
-                <div id="mailMessage" class="message"></div>
-            </section>
-        </div>
-    </main>
-
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script>
-        const accountId = <?php echo (int) $account['id']; ?>;
-        const message = $('#message');
-        const errorMessage = $('#errorMessage');
-        let processStatusLoading = false;
-        let numberUpdateLoading = false;
-        let numberUpdateTimer = null;
-
-        function setProcessRunning(isRunning) {
-            $('#processStartBtn').prop('disabled', isRunning).text(isRunning ? 'Process Running' : 'Start Process');
-            $('#stopBtn').prop('disabled', !isRunning);
-        }
-
-        function setMailPolling(isPolling) {
-            $('#mailStartBtn').prop('disabled', isPolling).text(isPolling ? 'Email Polling Started' : 'Start Mail Execution');
-            $('#mailStopBtn').prop('disabled', !isPolling);
-        }
-
-        function clearNumberUpdateTimer() {
-            if (numberUpdateTimer) {
-                clearTimeout(numberUpdateTimer);
-                numberUpdateTimer = null;
-            }
-        }
-
-        function scheduleNextNumberUpdate(job) {
-            clearNumberUpdateTimer();
-
-            if (!job || job.status !== 'Running') {
-                return;
-            }
-
-            const nextRunInSeconds = parseInt(job.next_run_in_seconds || 0, 10);
-            const delayMs = Math.max(0, nextRunInSeconds) * 1000;
-            numberUpdateTimer = setTimeout(runNextNumberUpdate, delayMs);
-        }
-
-        function renderProcessStatus(job) {
-            $('#status').text(job.status);
-            $('#currentPhone').text(job.current_phone);
-            $('#progress').text(job.progress);
-            message.text(job.message || '');
-            if (job.error_message) {
-                errorMessage.text('Error: ' + job.error_message);
-            }
-            setProcessRunning(job.status === 'Running');
-            scheduleNextNumberUpdate(job);
-        }
-
-        function updateStatus() {
-            if (processStatusLoading) {
-                return;
-            }
-
-            processStatusLoading = true;
-            $.post('ajax/process_status.php', { account_id: accountId }, function (res) {
-                if (!res.success) {
-                    errorMessage.text(res.message || 'Unable to load status.');
-                    return;
-                }
-
-                renderProcessStatus(res.job);
-            }, 'json').fail(function () {
-                errorMessage.text('Unable to refresh process status.');
-            }).always(function () {
-                processStatusLoading = false;
-            });
-        }
-
-        function runNextNumberUpdate() {
-            if (numberUpdateLoading) {
-                return;
-            }
-
-            numberUpdateLoading = true;
-            $.post('ajax/run_next_number.php', { account_id: accountId }, function (res) {
-                if (!res.success) {
-                    errorMessage.text(res.message || 'Unable to update phone number.');
-                    setProcessRunning(false);
-                    clearNumberUpdateTimer();
-                    return;
-                }
-
-                renderProcessStatus(res.job);
-            }, 'json').fail(function () {
-                errorMessage.text('Unable to update phone number.');
-                scheduleNextNumberUpdate({
-                    status: 'Running',
-                    next_run_in_seconds: <?php echo (int) $numberUpdateDelaySeconds; ?>
-                });
-            }).always(function () {
-                numberUpdateLoading = false;
-            });
-        }
-
-        $('#processForm').on('submit', function (e) {
-            e.preventDefault();
-            $('#processStartBtn').prop('disabled', true).text('Starting Process');
-            message.text('Starting process...');
-            errorMessage.text('');
-
-            $.post('ajax/start_process.php', $(this).serialize(), function (res) {
-                if (res.job) {
-                    renderProcessStatus(res.job);
-                } else {
-                    errorMessage.text(res.message);
-                }
-
-                if (!res.success) {
-                    setProcessRunning(false);
-                    return;
-                }
-            }, 'json').fail(function () {
-                message.text('Request failed. Please try again.');
-                setProcessRunning(false);
-            });
-        });
-
-        $('#stopBtn').on('click', function () {
-            $('#stopBtn').prop('disabled', true).text('Stopping Process');
-            $.post('ajax/stop_process.php', { account_id: accountId }, function (res) {
-                clearNumberUpdateTimer();
-                message.text(res.message);
-                errorMessage.text('');
-                $('#stopBtn').text('Stop Process');
-                setProcessRunning(false);
-                updateStatus();
-            }, 'json').fail(function () {
-                $('#stopBtn').prop('disabled', false).text('Stop Process');
-                message.text('Request failed. Please try again.');
-            });
-        });
-
-        function renderMailEvents(events) {
-            $('#mailEventsBody').empty();
-
-            if (!events.length) {
-                $('#mailEventsBody').append(
-                    '<tr><td colspan="4">No received email yet.</td></tr>'
-                );
-                return;
-            }
-
-            events.forEach(function (event) {
-                const link = event.verification_url || '';
-                const automationStatus = event.browser_automation_status || (link ? 'Pending' : '');
-                const automationError = event.browser_automation_error
-                    ? '<br><span class="mail-date">' + $('<div>').text(event.browser_automation_error).html() + '</span>'
-                    : '';
-                const buttonClicked = parseInt(event.button_clicked || 0, 10) === 1 ? 'Done' : 'Not Done';
-                const openLink = link
-                    ? '<div class="mail-actions">' +
-                        '<a class="mail-link" href="' + $('<div>').text(link).html() + '" target="_blank" rel="noopener noreferrer">Open Link</a>' +
-                        '<button type="button" class="mail-copy" data-link="' + $('<div>').text(link).html() + '">Copy Link</button>' +
-                    '</div>'
-                    : '';
-
-                $('#mailEventsBody').append(
-                    '<tr data-event-id="' + event.id + '">' +
-                    '<td>Done<br><span class="mail-date">' + $('<div>').text(event.received_at || '').html() + '</span></td>' +
-                    '<td>' + openLink + '</td>' +
-                    '<td>' + $('<div>').text(automationStatus).html() + automationError + '</td>' +
-                    '<td>' + buttonClicked + '</td>' +
-                    '</tr>'
-                );
-            });
-        }
-
-        $(document).on('click', '.mail-copy', function () {
-            const button = $(this);
-            const link = button.data('link');
-
-            navigator.clipboard.writeText(link).then(function () {
-                button.text('Copied');
-                setTimeout(function () {
-                    button.text('Copy Link');
-                }, 1200);
-            });
-        });
-
-        function updateMailStatus() {
-            $.post('ajax/mail_status.php', { account_id: accountId }, function (res) {
-                if (!res.success) {
-                    $('#mailMessage').text(res.message || 'Unable to load mail status.');
-                    return;
-                }
-
-                $('#mailStatus').text(res.run.status);
-                $('#mailProcessed').text(res.run.emails_processed);
-                $('#mailLastEmail').text(res.run.last_email);
-                $('#mailOperation').text(res.run.current_operation);
-                $('#mailMessage').text(res.run.error_message || '');
-
-                setMailPolling(res.run.is_polling);
-            }, 'json');
-        }
-
-        function loadMailEvents() {
-            $.post('ajax/mail_events.php', { account_id: accountId }, function (res) {
-                if (res.success) {
-                    renderMailEvents(res.events);
-                }
-            }, 'json');
-        }
-
-        $('#mailStartBtn').on('click', function () {
-            const email = $('#emailInput').val().trim();
-
-            if (!email) {
-                $('#mailMessage').text('Enter an email in the Number Updation email field first.');
-                return;
-            }
-
-            $('#mailStartBtn').prop('disabled', true).text('Clicked - Starting Polling');
-            $('#mailMessage').text('Email polling is starting...');
-            $.post('ajax/mail_start.php', { account_id: accountId, email: email }, function (res) {
-                $('#mailMessage').text(res.message);
-                if (!res.success) {
-                    setMailPolling(false);
-                    return;
-                }
-                setMailPolling(true);
-                loadMailEvents();
-                updateMailStatus();
-            }, 'json').fail(function () {
-                $('#mailMessage').text('Request failed. Please try again.');
-                setMailPolling(false);
-            });
-        });
-
-        $('#mailStopBtn').on('click', function () {
-            $('#mailStopBtn').prop('disabled', true).text('Stopping Mail');
-            $.post('ajax/mail_stop.php', { account_id: accountId }, function (res) {
-                $('#mailMessage').text(res.message);
-                $('#mailStopBtn').text('Stop Mail Execution');
-                setMailPolling(false);
-                updateMailStatus();
-            }, 'json').fail(function () {
-                $('#mailStopBtn').prop('disabled', false).text('Stop Mail Execution');
-                $('#mailMessage').text('Request failed. Please try again.');
-            });
-        });
-
-        $('#mailFlushBtn').on('click', function () {
-            $.post('ajax/mail_flush.php', { account_id: accountId }, function (res) {
-                $('#mailMessage').text(res.message);
-                $('#mailEventsBody').empty();
-                renderMailEvents([]);
-                updateMailStatus();
-            }, 'json').fail(function () {
-                $('#mailMessage').text('Request failed. Please try again.');
-            });
-        });
-
-        setProcessRunning(false);
-        setMailPolling(false);
-        updateStatus();
-        updateMailStatus();
-        loadMailEvents();
-        setInterval(function () {
-            updateMailStatus();
-            loadMailEvents();
-        }, 2000);
-    </script>
+    <?php endif; ?>
+</div>
 </body>
 </html>
