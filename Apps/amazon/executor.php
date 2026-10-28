@@ -15,13 +15,22 @@ if (!$account) {
     exit;
 }
 
+if (empty($_SESSION['phone_update_token'])) {
+    $_SESSION['phone_update_token'] = bin2hex(random_bytes(32));
+}
+
 $message = '';
 $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phone = trim($_POST['phone'] ?? '');
+    $token = $_POST['token'] ?? '';
 
     try {
+        if (!hash_equals($_SESSION['phone_update_token'], $token)) {
+            throw new RuntimeException('Invalid form token. Refresh the page.');
+        }
+
         // Release the PHP session lock before making network requests to AWS.
         session_write_close();
 
@@ -107,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Update AWS Phone Number</title>
 <style>
-* { box-sizing: border-box; }
+/* * { box-sizing: border-box; }
 
 body {
     margin: 0;
@@ -168,7 +177,7 @@ button:disabled {
     font-size: 14px;
     overflow-wrap: anywhere;
     color: <?= $success ? '#15803d' : '#b91c1c' ?>;
-}
+} */
 </style>
 </head>
 <body>
@@ -176,6 +185,16 @@ button:disabled {
     <h2>Update Phone Number</h2>
 
     <form method="post">
+        <input
+            type="hidden"
+            name="token"
+            value="<?= htmlspecialchars(
+                $_SESSION['phone_update_token'],
+                ENT_QUOTES,
+                'UTF-8'
+            ) ?>"
+        >
+
         <label for="phone">New phone number</label>
         <input
             type="tel"
