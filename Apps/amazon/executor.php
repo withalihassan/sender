@@ -84,18 +84,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         button { border: 0; border-radius: 4px; background: #ff9900; cursor: pointer; font-weight: bold; }
         button:disabled { opacity: .6; cursor: wait; }
         #status { min-height: 22px; margin-top: 12px; white-space: pre-line; }
+        #countdown { display: block; min-height: 16px; color: #666; font-size: 12px; }
     </style>
 </head>
 <body>
     <main class="card">
         <h2>Update Phone Numbers</h2>
-        <p>Enter one international phone number per line. Updates run 10 seconds apart.</p>
+        <p>Enter one international phone number per line. A countdown appears between updates.</p>
         <form id="phoneForm">
             <label for="phones">Phone numbers</label>
             <textarea id="phones" placeholder="+923001234567&#10;+923009876543" required></textarea>
             <button id="startButton" type="submit">Start Updates</button>
         </form>
         <div id="status" role="status" aria-live="polite"></div>
+        <small id="countdown" aria-live="polite"></small>
     </main>
 
     <script>
@@ -103,6 +105,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const textarea = document.getElementById('phones');
         const button = document.getElementById('startButton');
         const status = document.getElementById('status');
+        const countdown = document.getElementById('countdown');
+        const delaySeconds = 50;
         let controller = null;
         let running = false;
 
@@ -112,7 +116,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             event.preventDefault();
             if (running) return;
 
-            const phones = textarea.value.split(/\r?\n/).map(phone => phone.trim()).filter(Boolean);
+            const phones = textarea.value
+                .split(/\r?\n/)
+                .map(phone => phone.trim())
+                .filter(Boolean)
+                .map(phone => phone.startsWith('+') ? phone : '+' + phone);
             if (!phones.length) {
                 status.textContent = 'Enter at least one phone number.';
                 return;
@@ -128,10 +136,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             controller = new AbortController();
             textarea.disabled = true;
             button.disabled = true;
+            countdown.textContent = '';
             let completed = 0;
 
             try {
                 while (completed < phones.length) {
+                    countdown.textContent = '';
                     status.textContent = 'Updating ' + (completed + 1) + ' of ' + phones.length + ': ' + phones[completed];
                     const body = new URLSearchParams({ phone: phones[completed] });
                     const response = await fetch(window.location.href, {
@@ -147,9 +157,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     completed++;
                     status.textContent = result.message + ' (' + completed + '/' + phones.length + ')';
-                    if (completed < phones.length) await wait(50000);
+                    if (completed < phones.length) {
+                        for (let seconds = delaySeconds; seconds > 0; seconds--) {
+                            countdown.textContent = 'Next number in ' + seconds + ' seconds';
+                            await wait(1000);
+                        }
+                    }
                 }
                 status.textContent = 'Finished. Updated ' + completed + ' phone number(s).';
+                countdown.textContent = '';
             } catch (error) {
                 if (error.name !== 'AbortError') {
                     status.textContent = 'Stopped after ' + completed + ' update(s): ' + error.message;
@@ -159,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 controller = null;
                 textarea.disabled = false;
                 button.disabled = false;
+                countdown.textContent = '';
             }
         });
 
