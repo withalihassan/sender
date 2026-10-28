@@ -3,7 +3,6 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/db.php';
 
 $id = (int) ($_GET['id'] ?? 0);
-
 $stmt = $pdo->prepare(
     'SELECT aws_key, aws_secret FROM accounts WHERE id = ? AND by_user = ? LIMIT 1'
 );
@@ -11,151 +10,161 @@ $stmt->execute([$id, (int) $_SESSION['user_id']]);
 $account = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$account) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        http_response_code(404);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Account not found.']);
+        exit;
+    }
     header('Location: index.php');
     exit;
 }
 
-if (empty($_SESSION['phone_update_token'])) {
-    $_SESSION['phone_update_token'] = bin2hex(random_bytes(32));
-}
-
-$message = '';
-$success = false;
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $phone = trim($_POST['phone'] ?? '');
-    $token = $_POST['token'] ?? '';
+    header('Content-Type: application/json');
+    session_write_close();
 
     try {
-        if (!hash_equals($_SESSION['phone_update_token'], $token)) {
-            throw new RuntimeException('Invalid form token. Refresh the page.');
-        }
-
-        // Release the PHP session lock before making network requests to AWS.
-        session_write_close();
-
+        $phone = trim($_POST['phone'] ?? '');
         if (!preg_match('/^\+[1-9]\d{1,14}$/', $phone)) {
-            throw new RuntimeException(
-                'Enter a valid international number, for example +923001234567.'
-            );
+            throw new RuntimeException('Enter a valid international phone number.');
         }
 
-        // Credentials are read from the existing database record.
-        $accessKey = $account['aws_key'] ?? '';
-        $secretKey = $account['aws_secret'] ?? '';
-
-        if (!$accessKey || !$secretKey) {
-            throw new RuntimeException(
-                'AWS access key or secret key is missing from the database record.'
-            );
-        }
-
-        // The repository keeps the AWS SDK at the project root: /aws.
         $sdkAutoloader = __DIR__ . '/../../aws/aws-autoloader.php';
-
         if (!is_file($sdkAutoloader)) {
-            throw new RuntimeException(
-                'AWS SDK autoloader not found at: ' . $sdkAutoloader
-            );
+            throw new RuntimeException('AWS SDK autoloader was not found.');
         }
-
         require_once $sdkAutoloader;
 
         if (!class_exists('Aws\\Account\\AccountClient')) {
-            throw new RuntimeException(
-                'AWS SDK loaded, but Aws\\Account\\AccountClient is unavailable.'
-            );
+            throw new RuntimeException('AWS Account client is unavailable.');
         }
 
-        $config = [
+        $client = new \Aws\Account\AccountClient([
             'version' => 'latest',
             'region' => 'us-east-1',
             'credentials' => [
-                'key'    => $accessKey,
-                'secret' => $secretKey,
+                'key' => $account['aws_key'],
+                'secret' => $account['aws_secret'],
             ],
-        ];
+        ]);
 
-        $client = new \Aws\Account\AccountClient($config);
-
-        // Saved credentials belong to this account, so omit AccountId.
-        // This avoids an extra STS request and preserves standalone account support.
         $result = $client->getContactInformation([]);
         $contact = $result['ContactInformation'] ?? [];
-
-        foreach (
-            ['AddressLine1', 'City', 'CountryCode', 'FullName', 'PostalCode']
-            as $field
-        ) {
+        foreach (['AddressLine1', 'City', 'CountryCode', 'FullName', 'PostalCode'] as $field) {
             if (empty($contact[$field])) {
-                throw new RuntimeException(
-                    "AWS contact information is missing: $field"
-                );
+                throw new RuntimeException("AWS contact information is missing: $field");
             }
         }
 
-        // Change only the phone number.
         $contact['PhoneNumber'] = $phone;
-
         $client->putContactInformation(['ContactInformation' => $contact]);
-
-        $message = 'Phone number update submitted successfully.';
-        $success = true;
-
+        echo json_encode(['success' => true, 'message' => 'Updated ' . $phone]);
     } catch (\Throwable $e) {
         $message = $e instanceof \Aws\Exception\AwsException
             ? ($e->getAwsErrorMessage() ?: 'AWS request failed. Check IAM permissions.')
             : $e->getMessage();
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $message]);
     }
+    exit;
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Update AWS Phone Number</title>
-<style>
-body { font-family: Arial, sans-serif; margin: 20px; }
-.card { max-width: 400px; }
-label { display: block; margin-bottom: 6px; }
-input, button { box-sizing: border-box; width: 100%; padding: 10px; margin-bottom: 12px; }
-.message { color: <?= $success ? 'green' : 'red' ?>; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Update AWS Phone Numbers</title>
+    <style>
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; box-sizing: border-box; font: 16px Arial, sans-serif; background: #f4f6f8; }
+        .card { width: 100%; max-width: 440px; padding: 24px; box-sizing: border-box; background: #fff; border: 1px solid #ddd; border-radius: 8px; }
+        textarea, button { width: 100%; box-sizing: border-box; padding: 11px; margin-top: 8px; font: inherit; }
+        textarea { min-height: 180px; resize: vertical; }
+        button { border: 0; border-radius: 4px; background: #ff9900; cursor: pointer; font-weight: bold; }
+        button:disabled { opacity: .6; cursor: wait; }
+        #status { min-height: 22px; margin-top: 12px; white-space: pre-line; }
+    </style>
 </head>
 <body>
-<div class="card">
-    <h2>Update Phone Number</h2>
+    <main class="card">
+        <h2>Update Phone Numbers</h2>
+        <p>Enter one international phone number per line. Updates run 10 seconds apart.</p>
+        <form id="phoneForm">
+            <label for="phones">Phone numbers</label>
+            <textarea id="phones" placeholder="+923001234567&#10;+923009876543" required></textarea>
+            <button id="startButton" type="submit">Start Updates</button>
+        </form>
+        <div id="status" role="status" aria-live="polite"></div>
+    </main>
 
-    <form method="post">
-        <input
-            type="hidden"
-            name="token"
-            value="<?= htmlspecialchars(
-                $_SESSION['phone_update_token'],
-                ENT_QUOTES,
-                'UTF-8'
-            ) ?>"
-        >
+    <script>
+        const form = document.getElementById('phoneForm');
+        const textarea = document.getElementById('phones');
+        const button = document.getElementById('startButton');
+        const status = document.getElementById('status');
+        let controller = null;
+        let running = false;
 
-        <label for="phone">New phone number</label>
-        <input
-            type="tel"
-            id="phone"
-            name="phone"
-            placeholder="+923001234567"
-            pattern="\+[1-9][0-9]{1,14}"
-            required
-        >
+        const wait = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
-        <button type="submit">Update Phone Number</button>
-    </form>
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (running) return;
 
-    <?php if ($message !== ''): ?>
-        <div class="message">
-            <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?>
-        </div>
-    <?php endif; ?>
-</div>
+            const phones = textarea.value.split(/\r?\n/).map(phone => phone.trim()).filter(Boolean);
+            if (!phones.length) {
+                status.textContent = 'Enter at least one phone number.';
+                return;
+            }
+
+            const invalidPhone = phones.find(phone => !/^\+[1-9]\d{1,14}$/.test(phone));
+            if (invalidPhone) {
+                status.textContent = 'Invalid phone number: ' + invalidPhone;
+                return;
+            }
+
+            running = true;
+            controller = new AbortController();
+            textarea.disabled = true;
+            button.disabled = true;
+            let completed = 0;
+
+            try {
+                while (completed < phones.length) {
+                    status.textContent = 'Updating ' + (completed + 1) + ' of ' + phones.length + ': ' + phones[completed];
+                    const body = new URLSearchParams({ phone: phones[completed] });
+                    const response = await fetch(window.location.href, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: body,
+                        signal: controller.signal
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || 'Update failed.');
+                    }
+
+                    completed++;
+                    status.textContent = result.message + ' (' + completed + '/' + phones.length + ')';
+                    if (completed < phones.length) await wait(50000);
+                }
+                status.textContent = 'Finished. Updated ' + completed + ' phone number(s).';
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    status.textContent = 'Stopped after ' + completed + ' update(s): ' + error.message;
+                }
+            } finally {
+                running = false;
+                controller = null;
+                textarea.disabled = false;
+                button.disabled = false;
+            }
+        });
+
+        window.addEventListener('pagehide', () => {
+            if (controller) controller.abort();
+        });
+    </script>
 </body>
 </html>
