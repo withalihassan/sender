@@ -10,64 +10,96 @@ $stmt->execute([$id, (int) $_SESSION['user_id']]);
 $account = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$account) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        http_response_code(404);
-        header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Account not found.']);
-        exit;
-    }
     header('Location: index.php');
     exit;
 }
 
+$message = '';
+$results = [];
+$phoneText = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json');
-    session_write_close();
+    $phoneText = trim($_POST['phones'] ?? '');
+    $phones = array_values(array_filter(
+        array_map('trim', preg_split('/\R/', $phoneText)),
+        static fn($phone) => $phone !== ''
+    ));
 
-    try {
-        $phone = trim($_POST['phone'] ?? '');
-        if (!preg_match('/^\+[1-9]\d{1,14}$/', $phone)) {
-            throw new RuntimeException('Enter a valid international phone number.');
+    foreach ($phones as &$phone) {
+        if (substr($phone, 0, 1) !== '+') {
+            $phone = '+' . $phone;
         }
+    }
+    unset($phone);
 
-        $sdkAutoloader = __DIR__ . '/../../aws/aws-autoloader.php';
-        if (!is_file($sdkAutoloader)) {
-            throw new RuntimeException('AWS SDK autoloader was not found.');
-        }
-        require_once $sdkAutoloader;
-
-        if (!class_exists('Aws\\Account\\AccountClient')) {
-            throw new RuntimeException('AWS Account client is unavailable.');
-        }
-
-        $client = new \Aws\Account\AccountClient([
-            'version' => 'latest',
-            'region' => 'us-east-1',
-            'credentials' => [
-                'key' => $account['aws_key'],
-                'secret' => $account['aws_secret'],
-            ],
-        ]);
-
-        $result = $client->getContactInformation([]);
-        $contact = $result['ContactInformation'] ?? [];
-        foreach (['AddressLine1', 'City', 'CountryCode', 'FullName', 'PostalCode'] as $field) {
-            if (empty($contact[$field])) {
-                throw new RuntimeException("AWS contact information is missing: $field");
+    if (!$phones) {
+        $message = 'Enter at least one phone number.';
+    } else {
+        $invalidPhone = null;
+        foreach ($phones as $phone) {
+            if (!preg_match('/^\+[1-9]\d{1,14}$/', $phone)) {
+                $invalidPhone = $phone;
+                break;
             }
         }
 
-        $contact['PhoneNumber'] = $phone;
-        $client->putContactInformation(['ContactInformation' => $contact]);
-        echo json_encode(['success' => true, 'message' => 'Updated ' . $phone]);
-    } catch (\Throwable $e) {
-        $message = $e instanceof \Aws\Exception\AwsException
-            ? ($e->getAwsErrorMessage() ?: 'AWS request failed. Check IAM permissions.')
-            : $e->getMessage();
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => $message]);
+        if ($invalidPhone !== null) {
+            $message = 'Invalid phone number: ' . $invalidPhone;
+        } else {
+            session_write_close();
+
+            try {
+                $sdkAutoloader = __DIR__ . '/../../aws/aws-autoloader.php';
+                if (!is_file($sdkAutoloader)) {
+                    throw new RuntimeException('AWS SDK autoloader was not found.');
+                }
+                require_once $sdkAutoloader;
+
+                if (!class_exists('Aws\\Account\\AccountClient')) {
+                    throw new RuntimeException('AWS Account client is unavailable.');
+                }
+
+                $client = new \Aws\Account\AccountClient([
+                    'version' => 'latest',
+                    'region' => 'us-east-1',
+                    'credentials' => [
+                        'key' => $account['aws_key'],
+                        'secret' => $account['aws_secret'],
+                    ],
+                ]);
+
+                $result = $client->getContactInformation([]);
+                $contact = $result['ContactInformation'] ?? [];
+                foreach (['AddressLine1', 'City', 'CountryCode', 'FullName', 'PostalCode'] as $field) {
+                    if (empty($contact[$field])) {
+                        throw new RuntimeException("AWS contact information is missing: $field");
+                    }
+                }
+
+                $index = 0;
+                while ($index < count($phones)) {
+                    $phone = $phones[$index];
+                    $contact['PhoneNumber'] = $phone;
+
+                    try {
+                        $client->putContactInformation(['ContactInformation' => $contact]);
+                        $results[] = ['phone' => $phone, 'success' => true, 'message' => 'Updated'];
+                    } catch (\Throwable $e) {
+                        $error = $e instanceof \Aws\Exception\AwsException
+                            ? ($e->getAwsErrorMessage() ?: $e->getMessage())
+                            : $e->getMessage();
+                        $results[] = ['phone' => $phone, 'success' => false, 'message' => $error];
+                    }
+
+                    $index++;
+                }
+            } catch (\Throwable $e) {
+                $message = $e instanceof \Aws\Exception\AwsException
+                    ? ($e->getAwsErrorMessage() ?: 'AWS request failed. Check IAM permissions.')
+                    : $e->getMessage();
+            }
+        }
     }
-    exit;
 }
 ?>
 <!DOCTYPE html>
@@ -82,106 +114,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         textarea, button { width: 100%; box-sizing: border-box; padding: 11px; margin-top: 8px; font: inherit; }
         textarea { min-height: 180px; resize: vertical; }
         button { border: 0; border-radius: 4px; background: #ff9900; cursor: pointer; font-weight: bold; }
-        button:disabled { opacity: .6; cursor: wait; }
-        #status { min-height: 22px; margin-top: 12px; white-space: pre-line; }
-        #countdown { display: block; min-height: 16px; color: #666; font-size: 12px; }
+        .message { margin-top: 12px; color: #b91c1c; }
+        .result { margin: 6px 0; }
     </style>
 </head>
 <body>
     <main class="card">
         <h2>Update Phone Numbers</h2>
-        <p>Enter one international phone number per line. A countdown appears between updates.</p>
-        <form id="phoneForm">
+        <p>Enter one international phone number per line.</p>
+        <form method="post">
             <label for="phones">Phone numbers</label>
-            <textarea id="phones" placeholder="+923001234567&#10;+923009876543" required></textarea>
-            <button id="startButton" type="submit">Start Updates</button>
+            <textarea id="phones" name="phones" placeholder="923001234567&#10;+923009876543" required><?= htmlspecialchars($phoneText, ENT_QUOTES, 'UTF-8') ?></textarea>
+            <button type="submit">Start Updates</button>
         </form>
-        <div id="status" role="status" aria-live="polite"></div>
-        <small id="countdown" aria-live="polite"></small>
+
+        <?php if ($message !== ''): ?>
+            <p class="message"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></p>
+        <?php endif; ?>
+
+        <?php foreach ($results as $result): ?>
+            <p class="result">
+                <?= htmlspecialchars($result['phone'], ENT_QUOTES, 'UTF-8') ?>:
+                <?= htmlspecialchars($result['message'], ENT_QUOTES, 'UTF-8') ?>
+            </p>
+        <?php endforeach; ?>
     </main>
-
-    <script>
-        const form = document.getElementById('phoneForm');
-        const textarea = document.getElementById('phones');
-        const button = document.getElementById('startButton');
-        const status = document.getElementById('status');
-        const countdown = document.getElementById('countdown');
-        const delaySeconds = 50;
-        let controller = null;
-        let running = false;
-
-        const wait = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
-
-        form.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            if (running) return;
-
-            const phones = textarea.value
-                .split(/\r?\n/)
-                .map(phone => phone.trim())
-                .filter(Boolean)
-                .map(phone => phone.startsWith('+') ? phone : '+' + phone);
-            if (!phones.length) {
-                status.textContent = 'Enter at least one phone number.';
-                return;
-            }
-
-            const invalidPhone = phones.find(phone => !/^\+[1-9]\d{1,14}$/.test(phone));
-            if (invalidPhone) {
-                status.textContent = 'Invalid phone number: ' + invalidPhone;
-                return;
-            }
-
-            running = true;
-            controller = new AbortController();
-            textarea.disabled = true;
-            button.disabled = true;
-            countdown.textContent = '';
-            let completed = 0;
-
-            try {
-                while (completed < phones.length) {
-                    countdown.textContent = '';
-                    status.textContent = 'Updating ' + (completed + 1) + ' of ' + phones.length + ': ' + phones[completed];
-                    const body = new URLSearchParams({ phone: phones[completed] });
-                    const response = await fetch(window.location.href, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: body,
-                        signal: controller.signal
-                    });
-                    const result = await response.json();
-                    if (!response.ok || !result.success) {
-                        throw new Error(result.message || 'Update failed.');
-                    }
-
-                    completed++;
-                    status.textContent = result.message + ' (' + completed + '/' + phones.length + ')';
-                    if (completed < phones.length) {
-                        for (let seconds = delaySeconds; seconds > 0; seconds--) {
-                            countdown.textContent = 'Next number in ' + seconds + ' seconds';
-                            await wait(1000);
-                        }
-                    }
-                }
-                status.textContent = 'Finished. Updated ' + completed + ' phone number(s).';
-                countdown.textContent = '';
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    status.textContent = 'Stopped after ' + completed + ' update(s): ' + error.message;
-                }
-            } finally {
-                running = false;
-                controller = null;
-                textarea.disabled = false;
-                button.disabled = false;
-                countdown.textContent = '';
-            }
-        });
-
-        window.addEventListener('pagehide', () => {
-            if (controller) controller.abort();
-        });
-    </script>
 </body>
 </html>
