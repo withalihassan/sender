@@ -2,9 +2,11 @@ sudo git fetch origin
 sudo git pull origin main
 
 
-psw: Hsan@7500
+psw: Hsan@7587
 
-mail: zeeshankarimi@support.cloudhub.site
+mail: danishhashmi56@support.cloudhub.site
+
+freshh mfa : FUMFAT7ON36WSL7YY3T3LE576OC356V43TQEZKEIBDH36XM6RRFKS6YFOSS77CYN
 
 +59170178435
 +59165571199
@@ -14,3 +16,6 @@ mail: zeeshankarimi@support.cloudhub.site
 +59160321903
 +59161234649
 +59165446700
+Prrioph@#$%98Prrioph@#$%98
+
+rz457t
